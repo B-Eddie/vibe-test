@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { InternshipBrowser } from "@/components/InternshipBrowser";
-import { readListings } from "@/lib/kv";
+import { getSeedInternships } from "@/lib/seed";
 
-export const dynamic = "force-dynamic";
-
-export default async function HomePage() {
-  const listings = await readListings();
+export default function HomePage() {
+  const listings = getSeedInternships();
 
   return (
     <main>
@@ -30,11 +28,15 @@ export default async function HomePage() {
         <div className="section-heading">
           <h2>Today’s top matches</h2>
           <p>
-            Ranked from your saved profile. Edit interests anytime to reshuffle
-            the feed.
+            Ranked from your saved profile. Live results use Hack Club AI search
+            when an API key is set.
           </p>
         </div>
-        <InternshipBrowser listings={listings} limit={5} showFilters={false} />
+        <InternshipBrowser
+          initialListings={listings}
+          limit={5}
+          showFilters={false}
+        />
       </section>
     </main>
   );

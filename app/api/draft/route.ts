@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import type { Internship, StudentProfile } from "@/lib/types";
+import { getHackClubClient, HACKCLUB_MODEL } from "@/lib/hackclub";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +9,29 @@ type DraftBody = {
   internship: Internship;
 };
 
+function extractJsonObject(content: string): {
+  coverEmail?: string;
+  whyMe?: string;
+} | null {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim() || content.trim();
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    return JSON.parse(candidate.slice(start, end + 1)) as {
+      coverEmail?: string;
+      whyMe?: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
 function localFallbackDraft(profile: StudentProfile, internship: Internship) {
   const name = profile.name || "Applicant";
-  const skills = profile.skills.slice(0, 4).join(", ") || "curiosity and initiative";
+  const skills =
+    profile.skills.slice(0, 4).join(", ") || "curiosity and initiative";
   const interests =
     profile.interests.slice(0, 3).join(", ") || "learning and research";
 
@@ -24,7 +44,8 @@ My name is ${name}, and I am a grade ${profile.grade || "11"} student${
   }. I am writing to apply for the ${internship.title} opportunity.
 
 I am especially interested in ${interests}, and I bring experience with ${skills}. ${
-    profile.bio || "I am eager to contribute, learn quickly, and take ownership of meaningful work."
+    profile.bio ||
+    "I am eager to contribute, learn quickly, and take ownership of meaningful work."
   }
 
 Thank you for considering my application. I would welcome the chance to contribute to ${internship.org}.
@@ -52,22 +73,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const client = getHackClubClient();
+  if (!client) {
     return NextResponse.json(localFallbackDraft(body.profile, body.internship));
   }
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: HACKCLUB_MODEL,
       temperature: 0.7,
-      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
           content:
-            "You help a high school student draft internship application materials. Return JSON with keys coverEmail and whyMe. Keep tone sincere, specific, and concise. Never invent awards or experience not present in the profile. Do not submit anything; drafting only.",
+            "You help a high school student draft internship application materials. Reply with ONLY valid JSON (no markdown) with keys coverEmail and whyMe. Keep tone sincere, specific, and concise. Never invent awards or experience not present in the profile. Do not submit anything; drafting only.",
         },
         {
           role: "user",
@@ -86,22 +105,16 @@ export async function POST(request: NextRequest) {
     });
 
     const content = completion.choices[0]?.message?.content;
+    const fallback = localFallbackDraft(body.profile, body.internship);
     if (!content) {
-      return NextResponse.json(localFallbackDraft(body.profile, body.internship));
+      return NextResponse.json(fallback);
     }
 
-    const parsed = JSON.parse(content) as {
-      coverEmail?: string;
-      whyMe?: string;
-    };
-
+    const parsed = extractJsonObject(content);
     return NextResponse.json({
-      coverEmail:
-        parsed.coverEmail ??
-        localFallbackDraft(body.profile, body.internship).coverEmail,
-      whyMe:
-        parsed.whyMe ?? localFallbackDraft(body.profile, body.internship).whyMe,
-      provider: "openai" as const,
+      coverEmail: parsed?.coverEmail ?? fallback.coverEmail,
+      whyMe: parsed?.whyMe ?? fallback.whyMe,
+      provider: "hackclub-ai" as const,
     });
   } catch {
     return NextResponse.json(localFallbackDraft(body.profile, body.internship));

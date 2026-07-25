@@ -87,7 +87,8 @@ export function DraftPanel({ internship, profile }: Props) {
 
       {provider ? (
         <p className="provider-note">
-          Draft source: {provider === "openai" ? "OpenAI" : "local fallback"}
+          Draft source:{" "}
+          {provider === "hackclub-ai" ? "Hack Club AI" : "local fallback"}
         </p>
       ) : null}
       {error ? <p className="error-note">{error}</p> : null}

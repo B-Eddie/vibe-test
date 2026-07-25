@@ -2,21 +2,49 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DraftPanel } from "@/components/DraftPanel";
+import { findCachedListing } from "@/lib/listings-cache";
 import { scoreInternship } from "@/lib/match";
 import { loadProfile, upsertTrackerStatus } from "@/lib/storage";
-import { EMPTY_PROFILE, type Internship, type StudentProfile } from "@/lib/types";
+import {
+  EMPTY_PROFILE,
+  type Internship,
+  type StudentProfile,
+} from "@/lib/types";
 
-export function InternshipDetail({ internship }: { internship: Internship }) {
+export function InternshipDetail({
+  internship: initial,
+}: {
+  internship: Internship | null;
+}) {
+  const [internship, setInternship] = useState<Internship | null>(initial);
   const [profile, setProfile] = useState<StudentProfile>(EMPTY_PROFILE);
 
   useEffect(() => {
     setProfile(loadProfile());
-  }, []);
+    if (!initial && typeof window !== "undefined") {
+      const id = window.location.pathname.split("/").pop();
+      if (id) {
+        const cached = findCachedListing(id);
+        if (cached) setInternship(cached);
+      }
+    }
+  }, [initial]);
 
   const match = useMemo(
-    () => scoreInternship(internship, profile),
+    () => (internship ? scoreInternship(internship, profile) : null),
     [internship, profile],
   );
+
+  if (!internship || !match) {
+    return (
+      <section className="detail-panel">
+        <p className="empty-state">
+          Listing not found. Go back to Internships and open it again from the
+          feed.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <div className="detail-layout">

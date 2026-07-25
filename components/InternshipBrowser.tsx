@@ -3,29 +3,56 @@
 import { useEffect, useMemo, useState } from "react";
 import { InternshipCard } from "@/components/InternshipCard";
 import { rankInternships } from "@/lib/match";
+import { cacheListings } from "@/lib/listings-cache";
 import { loadProfile, upsertTrackerStatus } from "@/lib/storage";
 import type { Internship, StudentProfile } from "@/lib/types";
 import { EMPTY_PROFILE } from "@/lib/types";
 
 type Props = {
-  listings: Internship[];
+  initialListings: Internship[];
   limit?: number;
   showFilters?: boolean;
 };
 
 export function InternshipBrowser({
-  listings,
+  initialListings,
   limit,
   showFilters = true,
 }: Props) {
+  const [listings, setListings] = useState<Internship[]>(initialListings);
   const [profile, setProfile] = useState<StudentProfile>(EMPTY_PROFILE);
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [tag, setTag] = useState("all");
   const [deadlineDays, setDeadlineDays] = useState<"any" | "30" | "60">("any");
+  const [liveSearch, setLiveSearch] = useState(false);
+  const [loadingLive, setLoadingLive] = useState(false);
 
   useEffect(() => {
-    setProfile(loadProfile());
-  }, []);
+    const loaded = loadProfile();
+    setProfile(loaded);
+    cacheListings(initialListings);
+
+    const params = new URLSearchParams();
+    if (loaded.interests.length) {
+      params.set("interests", loaded.interests.join(","));
+    }
+    if (loaded.city) params.set("city", loaded.city);
+
+    setLoadingLive(true);
+    fetch(`/api/internships?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data: { listings?: Internship[]; liveSearch?: boolean }) => {
+        if (data.listings?.length) {
+          setListings(data.listings);
+          cacheListings(data.listings);
+        }
+        setLiveSearch(Boolean(data.liveSearch));
+      })
+      .catch(() => {
+        /* keep seed listings */
+      })
+      .finally(() => setLoadingLive(false));
+  }, [initialListings]);
 
   const tags = useMemo(() => {
     const set = new Set<string>();
@@ -91,6 +118,14 @@ export function InternshipBrowser({
           </label>
         </div>
       ) : null}
+
+      <p className="provider-note">
+        {loadingLive
+          ? "Searching live internships with Hack Club AI…"
+          : liveSearch
+            ? "Showing curated programs plus live AI web search results."
+            : "Showing curated programs. Add HACKCLUB_API_KEY for live AI search."}
+      </p>
 
       <div className="internship-list">
         {matches.map((match) => (

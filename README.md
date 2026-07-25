@@ -6,19 +6,26 @@ Personal Next.js app for finding high school internships, ranking them against y
 
 - Local profile (interests, skills, grade, city, résumé text) in `localStorage`
 - Ranked internship feed with match reasons
-- Filters for remote, field tags, and deadline window
-- Draft assist for cover emails + “why me” blurbs (`OPENAI_API_KEY`, with local fallback)
+- On-demand live search via [Hack Club AI](https://ai.hackclub.com/) + Exa (no cron, no database)
+- Draft assist for cover emails + “why me” blurbs through Hack Club AI
 - Application tracker (saved / drafted / applied / rejected)
-- Nightly ingest via Vercel Cron into Vercel KV (falls back to curated seed data)
 
 ## Stack
 
 - Next.js 15 (App Router) + TypeScript + Tailwind CSS v4
-- Vercel Cron + Vercel KV (`@vercel/kv`)
-- OpenAI for drafts
-- Public Remotive API + We Work Remotely RSS for refreshable listings
+- Hack Club AI (`https://ai.hackclub.com/proxy/v1`) for chat drafts and Exa web search
+- Deployable on Vercel with a single env var
 
-## Local development
+## Setup
+
+1. Create an API key at [ai.hackclub.com](https://ai.hackclub.com/).
+2. Copy `.env.example` to `.env.local` and set:
+
+```bash
+HACKCLUB_API_KEY=your_key_here
+```
+
+3. Run locally:
 
 ```bash
 npm install
@@ -27,28 +34,19 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Copy `.env.example` to `.env.local` if you want OpenAI drafts and KV caching. Without env vars the app still runs on seed listings and a local draft fallback.
+Without an API key, the app still works on curated seed listings and a local draft fallback.
 
 ## Deploy on Vercel
 
-1. Push this repo to GitHub and import it in [Vercel](https://vercel.com/new).
-2. Add environment variables:
-   - `OPENAI_API_KEY` — optional but recommended for stronger drafts
-   - `CRON_SECRET` — required to protect `/api/cron/ingest`
-   - `KV_REST_API_URL` and `KV_REST_API_TOKEN` — from a Vercel KV / Upstash Redis store
-3. Enable the Cron job defined in `vercel.json` (`0 12 * * *` UTC → `/api/cron/ingest`).
-4. Deploy.
+1. Import this repo in [Vercel](https://vercel.com/new).
+2. Set **one** environment variable: `HACKCLUB_API_KEY`.
+3. Deploy.
 
-Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically when `CRON_SECRET` is set.
-
-### Manual ingest
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/ingest
-```
+No cron jobs, KV, or other services required.
 
 ## Notes
 
 - Nothing auto-submits applications. Apply links open in a new tab.
 - Profile and tracker stay in the browser — no user accounts.
-- Seed programs live in `data/seed-internships.json`; edit that file to curate more HS-friendly opportunities.
+- Seed programs live in `data/seed-internships.json`.
+- Live listings are fetched when you open the feed, using your profile interests in the search query.

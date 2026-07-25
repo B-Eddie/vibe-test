@@ -1,10 +1,8 @@
 import { TrackerBoard } from "@/components/TrackerBoard";
-import { readListings } from "@/lib/kv";
+import { getSeedInternships } from "@/lib/seed";
 
-export const dynamic = "force-dynamic";
-
-export default async function TrackerPage() {
-  const listings = await readListings();
+export default function TrackerPage() {
+  const listings = getSeedInternships();
 
   return (
     <main>
