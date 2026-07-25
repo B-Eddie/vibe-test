@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
+import type { Internship, StudentProfile } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+type DraftBody = {
+  profile: StudentProfile;
+  internship: Internship;
+};
+
+function localFallbackDraft(profile: StudentProfile, internship: Internship) {
+  const name = profile.name || "Applicant";
+  const skills = profile.skills.slice(0, 4).join(", ") || "curiosity and initiative";
+  const interests =
+    profile.interests.slice(0, 3).join(", ") || "learning and research";
+
+  const coverEmail = `Subject: Application for ${internship.title}
+
+Dear ${internship.org} team,
+
+My name is ${name}, and I am a grade ${profile.grade || "11"} student${
+    profile.city ? ` based in ${profile.city}` : ""
+  }. I am writing to apply for the ${internship.title} opportunity.
+
+I am especially interested in ${interests}, and I bring experience with ${skills}. ${
+    profile.bio || "I am eager to contribute, learn quickly, and take ownership of meaningful work."
+  }
+
+Thank you for considering my application. I would welcome the chance to contribute to ${internship.org}.
+
+Sincerely,
+${name}`;
+
+  const whyMe = `I am a strong fit for ${internship.title} because my interests in ${interests} align with this role, and I can contribute ${skills}. As a high school student, I am motivated, coachable, and ready to deliver careful, reliable work.`;
+
+  return { coverEmail, whyMe, provider: "local-fallback" as const };
+}
+
+export async function POST(request: NextRequest) {
+  let body: DraftBody;
+  try {
+    body = (await request.json()) as DraftBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!body?.profile || !body?.internship) {
+    return NextResponse.json(
+      { error: "profile and internship are required" },
+      { status: 400 },
+    );
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(localFallbackDraft(body.profile, body.internship));
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You help a high school student draft internship application materials. Return JSON with keys coverEmail and whyMe. Keep tone sincere, specific, and concise. Never invent awards or experience not present in the profile. Do not submit anything; drafting only.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            profile: body.profile,
+            internship: {
+              title: body.internship.title,
+              org: body.internship.org,
+              description: body.internship.description,
+              tags: body.internship.tags,
+              location: body.internship.location,
+            },
+          }),
+        },
+      ],
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return NextResponse.json(localFallbackDraft(body.profile, body.internship));
+    }
+
+    const parsed = JSON.parse(content) as {
+      coverEmail?: string;
+      whyMe?: string;
+    };
+
+    return NextResponse.json({
+      coverEmail:
+        parsed.coverEmail ??
+        localFallbackDraft(body.profile, body.internship).coverEmail,
+      whyMe:
+        parsed.whyMe ?? localFallbackDraft(body.profile, body.internship).whyMe,
+      provider: "openai" as const,
+    });
+  } catch {
+    return NextResponse.json(localFallbackDraft(body.profile, body.internship));
+  }
+}
