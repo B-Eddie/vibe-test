@@ -792,7 +792,15 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .fact-row,
+  .apply-header,
+  .apply-meta-card {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .apply-steps,
   .apply-steps-4 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 }
