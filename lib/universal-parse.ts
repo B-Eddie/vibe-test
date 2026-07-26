@@ -1,5 +1,6 @@
 import { parseHTML } from "linkedom";
 import { geminiText, getApiKey } from "./gemini";
+import { fetchApplicationPage, normalizeApplicationUrl } from "./fetch-page";
 import {
   classifyApplicationUrl,
   parseGoogleForm,
@@ -10,12 +11,66 @@ import type {
   ParsedApplication,
 } from "./types";
 
-const UA =
-  "Mozilla/5.0 (compatible; InternHarbor/1.0; +https://github.com/B-Eddie/vibe-test)";
-
 function cssEscape(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, (ch) => `\\${ch}`);
 }
+
+export const FALLBACK_QUESTIONS: FormQuestion[] = [
+  {
+    id: "full-name",
+    entryId: "full-name",
+    title: "Full name",
+    type: "short",
+    required: true,
+    options: [],
+    matchHints: ["full name", "name", "legal name"],
+  },
+  {
+    id: "email",
+    entryId: "email",
+    title: "Email",
+    type: "email",
+    required: true,
+    options: [],
+    matchHints: ["email", "e-mail"],
+  },
+  {
+    id: "phone",
+    entryId: "phone",
+    title: "Phone",
+    type: "short",
+    required: false,
+    options: [],
+    matchHints: ["phone", "mobile", "tel"],
+  },
+  {
+    id: "school",
+    entryId: "school",
+    title: "School",
+    type: "short",
+    required: false,
+    options: [],
+    matchHints: ["school", "high school", "university"],
+  },
+  {
+    id: "why",
+    entryId: "why",
+    title: "Why are you interested / cover letter",
+    type: "paragraph",
+    required: true,
+    options: [],
+    matchHints: ["why", "cover letter", "interest", "motivation", "essay"],
+  },
+  {
+    id: "experience",
+    entryId: "experience",
+    title: "Experience / résumé summary",
+    type: "paragraph",
+    required: true,
+    options: [],
+    matchHints: ["experience", "resume", "background", "qualifications"],
+  },
+];
 
 function detectPlatform(url: string, html: string): string {
   const host = (() => {
@@ -29,6 +84,7 @@ function detectPlatform(url: string, html: string): string {
 
   if (host.includes("docs.google.com") && url.includes("/forms/"))
     return "Google Forms";
+  if (host.includes("forms.gle")) return "Google Forms";
   if (blob.includes("greenhouse") || host.includes("greenhouse"))
     return "Greenhouse";
   if (blob.includes("lever.co") || host.includes("lever")) return "Lever";
@@ -45,7 +101,6 @@ function detectPlatform(url: string, html: string): string {
   if (blob.includes("icims")) return "iCIMS";
   if (blob.includes("smartrecruiters")) return "SmartRecruiters";
   if (blob.includes("ashbyhq") || host.includes("ashby")) return "Ashby";
-  if (host.includes("forms.gle")) return "Google Forms";
   return host.replace(/^www\./, "") || "Web application";
 }
 
@@ -62,14 +117,12 @@ function inferType(
   if (type === "time") return "time";
   if (type === "radio") return "multiple_choice";
   if (type === "checkbox") return "checkboxes";
-  if (type === "hidden" || type === "submit" || type === "button") return "unknown";
+  if (type === "hidden" || type === "submit" || type === "button")
+    return "unknown";
   return "short";
 }
 
-function labelForInput(
-  document: Document,
-  el: Element,
-): string {
+function labelForInput(document: Document, el: Element): string {
   const id = el.getAttribute("id");
   if (id) {
     const byFor = document.querySelector(`label[for="${cssEscape(id)}"]`);
@@ -96,12 +149,24 @@ function labelForInput(
   return "Untitled field";
 }
 
-function extractHtmlQuestions(html: string, pageUrl: string): {
+function extractHtmlQuestions(
+  html: string,
+  pageUrl: string,
+): {
   questions: FormQuestion[];
   formAction: string | null;
   title: string;
   text: string;
 } {
+  if (!html.trim()) {
+    return {
+      questions: [],
+      formAction: null,
+      title: "Application",
+      text: "",
+    };
+  }
+
   const { document } = parseHTML(html);
   const title =
     document.querySelector("title")?.textContent?.trim() ||
@@ -170,7 +235,9 @@ function extractHtmlQuestions(html: string, pageUrl: string): {
       entryId,
       title: titleText.slice(0, 180),
       type: qType,
-      required: el.hasAttribute("required") || el.getAttribute("aria-required") === "true",
+      required:
+        el.hasAttribute("required") ||
+        el.getAttribute("aria-required") === "true",
       options,
       manualOnly: qType === "file",
       name: name || undefined,
@@ -198,29 +265,16 @@ function extractJsonArray(content: string): unknown[] | null {
   }
 }
 
-async function fetchPage(url: string): Promise<{ html: string; finalUrl: string }> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml" },
-    redirect: "follow",
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(`Could not open that link (${res.status})`);
-  }
-  const html = await res.text();
-  return { html, finalUrl: res.url || url };
-}
-
 async function enrichPageTextWithGemini(
   url: string,
   existingText: string,
 ): Promise<string> {
-  if (!getApiKey() || existingText.length > 1500) return existingText;
+  if (!getApiKey()) return existingText;
   const summary = await geminiText({
     search: true,
     system:
-      "Summarize the application questions and required fields on this page. List every applicant-facing prompt you can find. Plain text only.",
-    user: `URL: ${url}\nKnown page text:\n${existingText.slice(0, 3000)}`,
+      "You research an application/internship form URL. List every applicant-facing question or field a student would need to answer. Include essays, dropdowns, and contact fields. Plain text only.",
+    user: `Application URL: ${url}\n\nPage text we already have (may be empty if blocked):\n${existingText.slice(0, 3000) || "(none — page blocked server-side)"}`,
   });
   if (!summary) return existingText;
   return `${existingText}\n${summary}`.trim();
@@ -231,16 +285,17 @@ async function aiExtractQuestions(
   platform: string,
   pageText: string,
 ): Promise<FormQuestion[]> {
-  if (!getApiKey() || pageText.length < 40) return [];
+  if (!getApiKey()) return [];
 
   const content = await geminiText({
     json: true,
+    search: pageText.length < 200,
     system:
-      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff.",
+      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff. If page text is thin, use the URL and search knowledge of typical fields for that platform.",
     user: JSON.stringify({
       url: pageUrl,
       platform,
-      pageText: pageText.slice(0, 10000),
+      pageText: pageText.slice(0, 10000) || "(empty)",
     }),
   });
 
@@ -314,112 +369,82 @@ function mergeQuestions(
   return [...out.values()];
 }
 
+function withMatchHints(questions: FormQuestion[]): FormQuestion[] {
+  return questions.map((question) => ({
+    ...question,
+    matchHints: [
+      question.title,
+      question.entryId,
+      ...(question.matchHints || []),
+    ],
+  }));
+}
+
 export async function parseAnyApplication(
   rawUrl: string,
 ): Promise<ParsedApplication> {
-  const kindHint = classifyApplicationUrl(rawUrl);
+  const url = normalizeApplicationUrl(rawUrl);
+  const kindHint = classifyApplicationUrl(url);
+
   if (kindHint === "google-form") {
-    const parsed = await parseGoogleForm(rawUrl);
-    return {
-      ...parsed,
-      fillMode: "auto-submit",
-      platform: "Google Forms",
-      questions: parsed.questions.map((question) => ({
-        ...question,
-        matchHints: [
-          question.title,
-          question.entryId,
-          ...(question.matchHints || []),
-        ],
-      })),
-    };
+    try {
+      const parsed = await parseGoogleForm(url);
+      return {
+        ...parsed,
+        fillMode: parsed.supportsAutoSubmit ? "auto-submit" : "page-fill",
+        platform: "Google Forms",
+        questions: withMatchHints(parsed.questions),
+      };
+    } catch {
+      // Fall through to universal Gemini-assisted path
+    }
   }
 
-  const { html, finalUrl } = await fetchPage(rawUrl.trim());
-  const platform = detectPlatform(finalUrl, html);
-  const extracted = extractHtmlQuestions(html, finalUrl);
+  const fetched = await fetchApplicationPage(url);
+  const finalUrl = fetched.finalUrl || url;
+  const platform = detectPlatform(finalUrl, fetched.html);
+  const extracted = extractHtmlQuestions(fetched.html, finalUrl);
+
   let questions = extracted.questions;
   let pageText = extracted.text;
-  if (pageText.length < 500 || questions.length < 3) {
+  let title = extracted.title || platform;
+
+  // Many application hosts block server crawlers (403/404). Keep going with Gemini.
+  const needsAi =
+    !fetched.ok ||
+    pageText.length < 500 ||
+    questions.length < 3;
+
+  if (needsAi) {
     pageText = await enrichPageTextWithGemini(finalUrl, pageText);
-  }
-  if (questions.length < 3) {
     const aiQuestions = await aiExtractQuestions(finalUrl, platform, pageText);
     questions = mergeQuestions(questions, aiQuestions);
+    if ((!title || title === "Application") && aiQuestions[0]) {
+      title = `${platform} application`;
+    }
   }
 
   if (!questions.length) {
-    // Last-resort generic packet so the desk never dead-ends
-    questions = [
-      {
-        id: "full-name",
-        entryId: "full-name",
-        title: "Full name",
-        type: "short",
-        required: true,
-        options: [],
-        matchHints: ["full name", "name", "legal name"],
-      },
-      {
-        id: "email",
-        entryId: "email",
-        title: "Email",
-        type: "email",
-        required: true,
-        options: [],
-        matchHints: ["email", "e-mail"],
-      },
-      {
-        id: "phone",
-        entryId: "phone",
-        title: "Phone",
-        type: "short",
-        required: false,
-        options: [],
-        matchHints: ["phone", "mobile", "tel"],
-      },
-      {
-        id: "school",
-        entryId: "school",
-        title: "School",
-        type: "short",
-        required: false,
-        options: [],
-        matchHints: ["school", "high school", "university"],
-      },
-      {
-        id: "why",
-        entryId: "why",
-        title: "Why are you interested / cover letter",
-        type: "paragraph",
-        required: true,
-        options: [],
-        matchHints: ["why", "cover letter", "interest", "motivation", "essay"],
-      },
-      {
-        id: "experience",
-        entryId: "experience",
-        title: "Experience / résumé summary",
-        type: "paragraph",
-        required: true,
-        options: [],
-        matchHints: ["experience", "resume", "background", "qualifications"],
-      },
-    ];
+    questions = FALLBACK_QUESTIONS;
   }
 
   const classicHtmlForm =
+    fetched.ok &&
     Boolean(extracted.formAction) &&
     extracted.questions.length >= 2 &&
     !/greenhouse|lever|workday|typeform|ashby/i.test(platform);
+
+  const blockedNote = fetched.ok
+    ? ""
+    : ` The site blocked a direct server read (HTTP ${fetched.status || "error"}), so answers were drafted from Gemini + your background — review carefully before autofill.`;
 
   return {
     kind: classicHtmlForm ? "html-form" : "web",
     url: finalUrl,
     submitUrl: classicHtmlForm ? extracted.formAction : null,
-    title: extracted.title || platform,
-    description: `${platform} application detected. InternHarbor will autofill fields on the live page from your background.`,
-    questions,
+    title,
+    description: `${platform} application ready.${blockedNote} InternHarbor will autofill the live page from your background.`,
+    questions: withMatchHints(questions),
     fbzx: null,
     collectEmail: questions.some((q) => q.type === "email"),
     supportsAutoSubmit: false,

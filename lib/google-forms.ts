@@ -3,6 +3,7 @@ import type {
   FormQuestionType,
   ParsedApplication,
 } from "./types";
+import { BROWSER_UA, normalizeApplicationUrl } from "./fetch-page";
 
 const TYPE_MAP: Record<number, FormQuestionType> = {
   0: "short",
@@ -22,7 +23,8 @@ function isGoogleFormsUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname;
     return (
-      host.includes("docs.google.com") && url.includes("/forms/")
+      (host.includes("docs.google.com") && url.includes("/forms/")) ||
+      host.includes("forms.gle")
     );
   } catch {
     return false;
@@ -30,11 +32,22 @@ function isGoogleFormsUrl(url: string): boolean {
 }
 
 export function classifyApplicationUrl(url: string): "google-form" | "web" {
-  return isGoogleFormsUrl(url) ? "google-form" : "web";
+  try {
+    return isGoogleFormsUrl(normalizeApplicationUrl(url))
+      ? "google-form"
+      : "web";
+  } catch {
+    return isGoogleFormsUrl(url) ? "google-form" : "web";
+  }
 }
 
 export function toViewFormUrl(raw: string): string {
   const url = new URL(raw.trim());
+  // Short links resolve after redirect — don't invent /viewform on forms.gle
+  if (url.hostname.includes("forms.gle")) {
+    return url.toString();
+  }
+
   url.hash = "";
   let path = url.pathname;
   path = path.replace(/\/formResponse\/?$/, "/viewform");
@@ -178,21 +191,44 @@ function walkQuestions(node: unknown, out: FormQuestion[]): void {
 export async function parseGoogleForm(
   rawUrl: string,
 ): Promise<ParsedApplication> {
-  const viewUrl = toViewFormUrl(rawUrl);
-  const res = await fetch(viewUrl, {
+  const startUrl = normalizeApplicationUrl(rawUrl);
+  // Resolve forms.gle → docs.google.com/forms/.../viewform via redirects
+  const probe = await fetch(startUrl, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; InternHarbor/1.0; +https://github.com/B-Eddie/vibe-test)",
-      Accept: "text/html",
+      "User-Agent": BROWSER_UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
     },
+    redirect: "follow",
     cache: "no-store",
   });
 
-  if (!res.ok) {
-    throw new Error(`Could not fetch Google Form (${res.status})`);
+  if (!probe.ok) {
+    throw new Error(`Could not fetch Google Form (${probe.status})`);
   }
 
-  const html = await res.text();
+  const resolved = probe.url || startUrl;
+  const viewUrl = toViewFormUrl(resolved);
+  let html = "";
+  if (viewUrl === resolved) {
+    html = await probe.text();
+  } else {
+    const res = await fetch(viewUrl, {
+      headers: {
+        "User-Agent": BROWSER_UA,
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      redirect: "follow",
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error(`Could not fetch Google Form (${res.status})`);
+    }
+    html = await res.text();
+  }
+
   const data = extractFbPublicLoadData(html);
   if (!data) {
     throw new Error(

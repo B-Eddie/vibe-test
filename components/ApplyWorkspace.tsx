@@ -92,12 +92,29 @@ export function ApplyWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: nextUrl.trim() }),
       });
-      const parseData = (await parseRes.json()) as {
+
+      let parseData: {
         application?: ParsedApplication;
         error?: string;
-      };
+      } = {};
+      try {
+        parseData = (await parseRes.json()) as {
+          application?: ParsedApplication;
+          error?: string;
+        };
+      } catch {
+        throw new Error(
+          parseRes.status === 404
+            ? "Apply API not found on this deploy — redeploy the latest main branch."
+            : `Could not read that application (HTTP ${parseRes.status}).`,
+        );
+      }
+
       if (!parseRes.ok || !parseData.application) {
-        throw new Error(parseData.error || "Could not read that application");
+        throw new Error(
+          parseData.error ||
+            `Could not read that application (HTTP ${parseRes.status}).`,
+        );
       }
 
       const fillRes = await fetch("/api/apply/fill", {
@@ -109,11 +126,24 @@ export function ApplyWorkspace() {
           opportunityContext: opportunityTitle || parseData.application.title,
         }),
       });
-      const fillData = (await fillRes.json()) as {
+
+      let fillData: {
         answers?: FilledAnswer[];
         provider?: string;
         error?: string;
-      };
+      } = {};
+      try {
+        fillData = (await fillRes.json()) as {
+          answers?: FilledAnswer[];
+          provider?: string;
+          error?: string;
+        };
+      } catch {
+        throw new Error(
+          `Could not draft answers (HTTP ${fillRes.status}). Check GEMINI_API_KEY.`,
+        );
+      }
+
       if (!fillRes.ok || !fillData.answers) {
         throw new Error(fillData.error || "Could not draft answers");
       }
