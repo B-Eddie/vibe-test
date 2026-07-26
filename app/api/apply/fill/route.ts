@@ -3,6 +3,7 @@ import { fillApplicationAnswers } from "@/lib/apply-fill";
 import type { ParsedApplication, StudentProfile } from "@/lib/types";
 import { EMPTY_PROFILE } from "@/lib/types";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

@@ -289,9 +289,10 @@ async function aiExtractQuestions(
 
   const content = await geminiText({
     json: true,
-    search: pageText.length < 200,
+    // Never combine JSON mime type with google_search — unsupported by Gemini.
+    search: false,
     system:
-      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff. If page text is thin, use the URL and search knowledge of typical fields for that platform.",
+      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff. If page text is thin, infer likely fields for that URL/platform.",
     user: JSON.stringify({
       url: pageUrl,
       platform,

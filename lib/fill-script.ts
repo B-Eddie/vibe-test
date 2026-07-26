@@ -35,6 +35,7 @@ export function buildAutofillSource(payload: FillPayloadItem[]): string {
   const json = JSON.stringify(payload);
   return `(() => {
   const items = ${json};
+  const cssEsc = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, (ch) => "\\\\" + ch);
   const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const score = (text, hints) => {
     const t = norm(text);
@@ -83,7 +84,7 @@ export function buildAutofillSource(payload: FillPayloadItem[]): string {
   const labelText = (el) => {
     const bits = [];
     if (el.id) {
-      const lab = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+      const lab = document.querySelector('label[for="' + cssEsc(el.id) + '"]');
       if (lab) bits.push(lab.textContent || "");
     }
     const parent = el.closest("label");
@@ -124,7 +125,7 @@ export function buildAutofillSource(payload: FillPayloadItem[]): string {
       } catch {}
     }
     if (!best && item.name) {
-      const el = document.querySelector('[name="' + CSS.escape(item.name) + '"]');
+      const el = document.querySelector('[name="' + cssEsc(item.name) + '"]');
       if (el && !used.has(el)) { best = el; bestScore = 110; }
     }
     for (const el of candidates) {
@@ -137,7 +138,7 @@ export function buildAutofillSource(payload: FillPayloadItem[]): string {
     if (type === "radio" || type === "checkbox") {
       const groupName = best.getAttribute("name");
       const group = groupName
-        ? [...document.querySelectorAll('input[type="' + type + '"][name="' + CSS.escape(groupName) + '"]')]
+        ? [...document.querySelectorAll('input[type="' + type + '"][name="' + cssEsc(groupName) + '"]')]
         : [best];
       const values = String(item.value).split("||").map((v) => norm(v));
       for (const node of group) {

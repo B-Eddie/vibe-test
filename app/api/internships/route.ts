@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadInternships } from "@/lib/gemini";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function parseList(value: string | null): string[] {
   if (!value) return [];

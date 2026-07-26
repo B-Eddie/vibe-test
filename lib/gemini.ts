@@ -1,12 +1,9 @@
-import {
-  GoogleGenerativeAI,
-  type GenerativeModel,
-} from "@google/generative-ai";
 import type { Internship } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
 
-export const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+export const GEMINI_MODEL =
+  process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
 
 export function getApiKey(): string | undefined {
   return (
@@ -16,55 +13,90 @@ export function getApiKey(): string | undefined {
   );
 }
 
-export function getGeminiClient(): GoogleGenerativeAI | null {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-  return new GoogleGenerativeAI(apiKey);
+type GeminiPart = { text?: string };
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: { parts?: GeminiPart[] };
+    finishReason?: string;
+  }>;
+  error?: { message?: string };
+};
+
+function extractText(data: GeminiResponse): string | null {
+  const parts = data.candidates?.[0]?.content?.parts ?? [];
+  const text = parts
+    .map((part) => part.text || "")
+    .join("")
+    .trim();
+  return text || null;
 }
 
-export function getGeminiModel(options?: {
-  json?: boolean;
-  search?: boolean;
-}): GenerativeModel | null {
-  const client = getGeminiClient();
-  if (!client) return null;
-
-  // googleSearch is supported on Gemini 2.x; typings may lag behind.
-  const tools = options?.search
-    ? ([{ googleSearch: {} }] as unknown as [{ googleSearch: Record<string, never> }])
-    : undefined;
-
-  return client.getGenerativeModel(
-    {
-      model: GEMINI_MODEL,
-      generationConfig: options?.json
-        ? { responseMimeType: "application/json" }
-        : undefined,
-      ...(tools ? { tools: tools as never } : {}),
-    },
-    { apiVersion: "v1beta" },
-  );
-}
-
+/**
+ * Direct REST calls — avoids @google/generative-ai SDK tool/json quirks
+ * that surface as minified "X is not a function" errors on Vercel.
+ */
 export async function geminiText(options: {
   system: string;
   user: string;
   json?: boolean;
   search?: boolean;
 }): Promise<string | null> {
-  const model = getGeminiModel({
-    json: options.json,
-    search: options.search,
-  });
-  if (!model) return null;
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const model = GEMINI_MODEL;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  // JSON mime type cannot be combined with google_search tool.
+  const useSearch = Boolean(options.search);
+  const useJson = Boolean(options.json) && !useSearch;
+
+  const body: Record<string, unknown> = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: useSearch
+              ? `${options.system}\n\n${options.user}`
+              : options.user,
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 8192,
+      ...(useJson ? { responseMimeType: "application/json" } : {}),
+    },
+  };
+
+  if (!useSearch) {
+    body.systemInstruction = {
+      parts: [{ text: options.system }],
+    };
+  }
+
+  if (useSearch) {
+    body.tools = [{ google_search: {} }];
+  }
 
   try {
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: options.user }] }],
-      systemInstruction: options.system,
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
     });
-    return result.response.text() || null;
-  } catch {
+
+    const data = (await res.json()) as GeminiResponse;
+    if (!res.ok) {
+      console.error("Gemini API error", res.status, data.error?.message || data);
+      return null;
+    }
+    return extractText(data);
+  } catch (error) {
+    console.error("Gemini request failed", error);
     return null;
   }
 }
@@ -99,7 +131,7 @@ export async function searchInternshipsWithGemini(options: {
   const text = await geminiText({
     search: true,
     system:
-      "You find real, currently open or regularly recurring high school internship and pre-college programs. Prefer official program pages. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items.",
+      "You find real, currently open or regularly recurring high school internship and pre-college programs. Prefer official program pages. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
     user: query,
   });
 
@@ -123,7 +155,6 @@ export async function searchInternshipsWithGemini(options: {
       };
       if (!row.title || !row.url) return null;
       try {
-        // Validate URL
         new URL(row.url);
       } catch {
         return null;

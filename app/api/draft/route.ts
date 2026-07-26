@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Internship, StudentProfile } from "@/lib/types";
 import { geminiText, getApiKey } from "@/lib/gemini";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type DraftBody = {
   profile: StudentProfile;
