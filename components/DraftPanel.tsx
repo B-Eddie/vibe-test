@@ -37,7 +37,11 @@ export function DraftPanel({ internship, profile }: Props) {
       setCoverEmail(data.coverEmail);
       setWhyMe(data.whyMe);
       setProvider(data.provider ?? null);
-      upsertTrackerStatus(internship.id, "drafted");
+      upsertTrackerStatus(internship.id, "drafted", {
+        title: internship.title,
+        url: internship.url,
+        kind: "internship",
+      });
     } catch {
       setError("Could not generate a draft. Try again in a moment.");
     } finally {
@@ -58,10 +62,10 @@ export function DraftPanel({ internship, profile }: Props) {
   return (
     <section className="draft-panel">
       <div className="section-heading">
-        <h2>Draft assist</h2>
+        <h2>Quick draft</h2>
         <p>
-          Generate a cover email and short “why me” blurb. You review and submit
-          yourself — nothing is sent automatically.
+          Optional cover email / why-me notes. For Google Forms and full
+          applications, use Apply with InternHarbor above.
         </p>
       </div>
 
@@ -76,12 +80,9 @@ export function DraftPanel({ internship, profile }: Props) {
         </button>
         <a
           className="btn-secondary"
-          href={internship.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => upsertTrackerStatus(internship.id, "applied")}
+          href={`/apply?url=${encodeURIComponent(internship.url)}&title=${encodeURIComponent(internship.title)}&from=${encodeURIComponent(internship.id)}`}
         >
-          Open apply page
+          Full apply desk
         </a>
       </div>
 

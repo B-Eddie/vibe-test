@@ -6,7 +6,13 @@ import { getCachedListings } from "@/lib/listings-cache";
 import { loadTracker, upsertTrackerStatus } from "@/lib/storage";
 import type { Internship, TrackerEntry, TrackerStatus } from "@/lib/types";
 
-const COLUMNS: TrackerStatus[] = ["saved", "drafted", "applied", "rejected"];
+const COLUMNS: TrackerStatus[] = [
+  "saved",
+  "drafted",
+  "ready",
+  "applied",
+  "rejected",
+];
 
 export function TrackerBoard({ listings }: { listings: Internship[] }) {
   const [entries, setEntries] = useState<TrackerEntry[]>([]);
@@ -31,7 +37,7 @@ export function TrackerBoard({ listings }: { listings: Internship[] }) {
   }
 
   return (
-    <div className="tracker-board">
+    <div className="tracker-board tracker-board-wide">
       {COLUMNS.map((status) => {
         const columnEntries = entries.filter((entry) => entry.status === status);
         return (
@@ -42,12 +48,20 @@ export function TrackerBoard({ listings }: { listings: Internship[] }) {
             <ul>
               {columnEntries.map((entry) => {
                 const internship = byId.get(entry.internshipId);
+                const title =
+                  entry.title || internship?.title || entry.internshipId;
+                const href = entry.url
+                  ? `/apply?url=${encodeURIComponent(entry.url)}&title=${encodeURIComponent(title)}&from=${encodeURIComponent(entry.internshipId)}`
+                  : `/internships/${entry.internshipId}`;
                 return (
                   <li key={entry.internshipId} className="tracker-item">
-                    <Link href={`/internships/${entry.internshipId}`}>
-                      {internship?.title ?? entry.internshipId}
-                    </Link>
-                    <p>{internship?.org ?? "Listing unavailable offline"}</p>
+                    <Link href={href}>{title}</Link>
+                    <p>
+                      {internship?.org ||
+                        entry.kind ||
+                        "Application"}
+                      {entry.notes ? ` · ${entry.notes}` : ""}
+                    </p>
                     <div className="tracker-move">
                       {COLUMNS.filter((column) => column !== status).map(
                         (column) => (

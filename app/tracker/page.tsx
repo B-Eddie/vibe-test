@@ -7,10 +7,10 @@ export default function TrackerPage() {
   return (
     <main>
       <header className="page-header">
-        <h1>Application tracker</h1>
+        <h1>Tracker</h1>
         <p>
-          Keep saved, drafted, applied, and rejected roles in this browser. Move
-          items between columns as you go.
+          Follow every opportunity from saved → drafted → ready → applied.
+          Google Form submissions land in Applied automatically.
         </p>
       </header>
       <TrackerBoard listings={listings} />

@@ -9,17 +9,17 @@ export default function HomePage() {
     <main>
       <section className="hero">
         <p className="hero-brand">InternHarbor</p>
-        <h1>High school internships, matched to you.</h1>
+        <h1>Find it. Fill it. Send it.</h1>
         <p className="hero-lead">
-          Discover programs that actually accept HS students, see why they fit,
-          and draft applications you review before you send.
+          Discover HS-friendly programs, then apply from one desk using your
+          saved background — Google Forms included.
         </p>
         <div className="hero-cta">
-          <Link className="btn-primary" href="/internships">
-            Browse matches
+          <Link className="btn-primary" href="/apply">
+            Apply to a link
           </Link>
-          <Link className="btn-secondary" href="/profile">
-            Set up profile
+          <Link className="btn-secondary" href="/internships">
+            Find opportunities
           </Link>
         </div>
       </section>
@@ -28,8 +28,8 @@ export default function HomePage() {
         <div className="section-heading">
           <h2>Today’s top matches</h2>
           <p>
-            Ranked from your saved profile. Live results use Hack Club AI search
-            when an API key is set.
+            Ranked from your background. Hit Apply on any card to draft and
+            submit from your profile.
           </p>
         </div>
         <InternshipBrowser

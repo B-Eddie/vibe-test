@@ -14,6 +14,7 @@ function formatDeadline(deadline: string | null): string {
 
 export function InternshipCard({ match }: { match: MatchResult }) {
   const { internship, score, reasons } = match;
+  const applyHref = `/apply?url=${encodeURIComponent(internship.url)}&title=${encodeURIComponent(internship.title)}&from=${encodeURIComponent(internship.id)}`;
 
   return (
     <article className="internship-row">
@@ -37,17 +38,12 @@ export function InternshipCard({ match }: { match: MatchResult }) {
         </ul>
       </div>
       <div className="internship-row-actions">
+        <Link className="btn-primary" href={applyHref}>
+          Apply
+        </Link>
         <Link className="btn-secondary" href={`/internships/${internship.id}`}>
           Details
         </Link>
-        <a
-          className="btn-primary"
-          href={internship.url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Apply link
-        </a>
       </div>
     </article>
   );

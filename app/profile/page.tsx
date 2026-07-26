@@ -4,10 +4,10 @@ export default function ProfilePage() {
   return (
     <main>
       <header className="page-header">
-        <h1>Your profile</h1>
+        <h1>Background</h1>
         <p>
-          Stored only in this browser. Used for ranking listings and drafting
-          application text.
+          Your reusable applicant packet — stored only in this browser. The
+          apply desk uses it to fill Google Forms and other applications.
         </p>
       </header>
       <ProfileForm />

@@ -16,9 +16,9 @@ const body = Figtree({
 });
 
 export const metadata: Metadata = {
-  title: "InternHarbor — HS Internship Finder",
+  title: "InternHarbor — Find & Apply",
   description:
-    "Find high school internships, rank matches to your profile, and draft applications you review yourself.",
+    "Find high school internships and apply from one desk using your background — including Google Forms.",
 };
 
 export default function RootLayout({

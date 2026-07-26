@@ -134,7 +134,13 @@ export function InternshipBrowser({
             <button
               type="button"
               className="btn-ghost save-inline"
-              onClick={() => upsertTrackerStatus(match.internship.id, "saved")}
+              onClick={() =>
+                upsertTrackerStatus(match.internship.id, "saved", {
+                  title: match.internship.title,
+                  url: match.internship.url,
+                  kind: "internship",
+                })
+              }
             >
               Save to tracker
             </button>

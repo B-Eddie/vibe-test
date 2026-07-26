@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DraftPanel } from "@/components/DraftPanel";
 import { findCachedListing } from "@/lib/listings-cache";
@@ -39,12 +40,13 @@ export function InternshipDetail({
     return (
       <section className="detail-panel">
         <p className="empty-state">
-          Listing not found. Go back to Internships and open it again from the
-          feed.
+          Listing not found. Go back to Find and open it again from the feed.
         </p>
       </section>
     );
   }
+
+  const applyHref = `/apply?url=${encodeURIComponent(internship.url)}&title=${encodeURIComponent(internship.title)}&from=${encodeURIComponent(internship.id)}`;
 
   return (
     <div className="detail-layout">
@@ -75,17 +77,26 @@ export function InternshipDetail({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => upsertTrackerStatus(internship.id, "saved")}
+            onClick={() =>
+              upsertTrackerStatus(internship.id, "saved", {
+                title: internship.title,
+                url: internship.url,
+                kind: "internship",
+              })
+            }
           >
             Save
           </button>
+          <Link className="btn-primary" href={applyHref}>
+            Apply with InternHarbor
+          </Link>
           <a
-            className="btn-primary"
+            className="btn-ghost"
             href={internship.url}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open apply link
+            Open listing
           </a>
         </div>
       </section>
