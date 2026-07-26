@@ -7,8 +7,9 @@ export default function ApplyPage() {
       <header className="page-header">
         <h1>Apply</h1>
         <p>
-          One desk for Google Forms and other program applications — filled from
-          your background, reviewed by you, then submitted or pasted.
+          Paste any application link — Google Forms, job portals, school
+          programs, and more. InternHarbor drafts answers from your background,
+          then autofills the live page.
         </p>
       </header>
       <Suspense fallback={<p className="provider-note">Loading apply desk…</p>}>

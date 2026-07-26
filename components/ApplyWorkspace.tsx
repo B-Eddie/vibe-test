@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  answersToFillPayload,
+  buildBookmarklet,
+  buildConsoleScript,
+} from "@/lib/fill-script";
+import {
   loadProfile,
   profileCompleteness,
   upsertTrackerStatus,
@@ -15,7 +20,7 @@ import {
   type StudentProfile,
 } from "@/lib/types";
 
-type Step = "link" | "review" | "done";
+type Step = "link" | "review" | "fill" | "done";
 
 function targetIdFor(url: string): string {
   let hash = 0;
@@ -41,23 +46,32 @@ export function ApplyWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [scriptCopied, setScriptCopied] = useState(false);
   const opportunityTitle = searchParams.get("title") || "";
   const fromId = searchParams.get("from") || "";
 
   const completeness = useMemo(() => profileCompleteness(profile), [profile]);
+  const fillPayload = useMemo(() => answersToFillPayload(answers), [answers]);
+  const bookmarklet = useMemo(
+    () => buildBookmarklet(fillPayload),
+    [fillPayload],
+  );
+  const consoleScript = useMemo(
+    () => buildConsoleScript(fillPayload),
+    [fillPayload],
+  );
 
   useEffect(() => {
     setProfile(loadProfile());
     const preset = searchParams.get("url");
-    if (preset) {
-      setUrl(preset);
-    }
+    if (preset) setUrl(preset);
   }, [searchParams]);
 
   async function prepareApplication(nextUrl = url) {
     setError(null);
     setStatusNote(null);
     setConfirmed(false);
+    setScriptCopied(false);
 
     if (!nextUrl.trim()) {
       setError("Paste an application link to continue.");
@@ -92,8 +106,7 @@ export function ApplyWorkspace() {
         body: JSON.stringify({
           profile,
           application: parseData.application,
-          opportunityContext:
-            opportunityTitle || parseData.application.title,
+          opportunityContext: opportunityTitle || parseData.application.title,
         }),
       });
       const fillData = (await fillRes.json()) as {
@@ -115,7 +128,7 @@ export function ApplyWorkspace() {
         title: opportunityTitle || parseData.application.title,
         url: parseData.application.url,
         kind: parseData.application.kind,
-        notes: "Answers drafted — review before submit",
+        notes: "Answers ready — review then autofill",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -132,70 +145,73 @@ export function ApplyWorkspace() {
     );
   }
 
-  async function submitApplication() {
+  async function copyFillScript() {
+    await navigator.clipboard.writeText(consoleScript);
+    setScriptCopied(true);
+    window.setTimeout(() => setScriptCopied(false), 2500);
+  }
+
+  async function launchPageFill() {
     if (!application) return;
     setError(null);
-    setSubmitting(true);
+    try {
+      await copyFillScript();
+      window.open(application.url, "_blank", "noopener,noreferrer");
+      setStep("fill");
+    } catch {
+      setError("Could not copy the autofill script. Copy it manually below.");
+      setStep("fill");
+    }
+  }
 
+  async function submitGoogle() {
+    if (!application?.submitUrl) return;
+    if (!confirmed) {
+      setError("Confirm you’ve reviewed every answer before submitting.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
     const id = fromId || targetIdFor(application.url);
 
     try {
-      if (application.kind === "google-form" && application.submitUrl) {
-        if (!confirmed) {
-          setError("Confirm you’ve reviewed every answer before submitting.");
-          setSubmitting(false);
-          return;
-        }
-
-        const payload: Record<string, string> = {};
-        for (const answer of answers) {
-          if (answer.manualOnly) continue;
-          payload[answer.entryId] = answer.value;
-        }
-
-        const res = await fetch("/api/apply/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            submitUrl: application.submitUrl,
-            answers: payload,
-            fbzx: application.fbzx,
-            confirm: true,
-          }),
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          status?: number;
-        };
-        if (!res.ok || !data.ok) {
-          throw new Error(
-            data.error ||
-              `Google Form submit returned status ${data.status ?? "unknown"}`,
-          );
-        }
-
-        upsertTrackerStatus(id, "applied", {
-          title: opportunityTitle || application.title,
-          url: application.url,
-          kind: "google-form",
-          notes: "Submitted via InternHarbor",
-        });
-        setStatusNote("Submitted to Google Forms. You’re marked as applied.");
-        setStep("done");
-      } else {
-        upsertTrackerStatus(id, "applied", {
-          title: opportunityTitle || application.title,
-          url: application.url,
-          kind: application.kind,
-          notes: "Opened application with prepared answers",
-        });
-        window.open(application.url, "_blank", "noopener,noreferrer");
-        setStatusNote(
-          "Opened the application page. Paste your reviewed answers, then you’re done.",
-        );
-        setStep("done");
+      const payload: Record<string, string> = {};
+      for (const answer of answers) {
+        if (answer.manualOnly) continue;
+        payload[answer.entryId] = answer.value;
       }
+
+      const res = await fetch("/api/apply/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submitUrl: application.submitUrl,
+          answers: payload,
+          fbzx: application.fbzx,
+          confirm: true,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        status?: number;
+      };
+      if (!res.ok || !data.ok) {
+        throw new Error(
+          data.error ||
+            `Submit returned status ${data.status ?? "unknown"}. Try live-page autofill instead.`,
+        );
+      }
+
+      upsertTrackerStatus(id, "applied", {
+        title: opportunityTitle || application.title,
+        url: application.url,
+        kind: application.kind,
+        notes: "Submitted via InternHarbor",
+      });
+      setStatusNote("Submitted. You’re marked as applied.");
+      setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Submit failed");
     } finally {
@@ -203,29 +219,50 @@ export function ApplyWorkspace() {
     }
   }
 
+  function markApplied() {
+    if (!application) return;
+    const id = fromId || targetIdFor(application.url);
+    upsertTrackerStatus(id, "applied", {
+      title: opportunityTitle || application.title,
+      url: application.url,
+      kind: application.kind,
+      notes: "Autofilled on live page",
+    });
+    setStatusNote(
+      "Marked applied. Double-check the live page for file uploads or CAPTCHA before you hit their submit button.",
+    );
+    setStep("done");
+  }
+
   const manualCount = answers.filter((answer) => answer.manualOnly).length;
   const lowConfidence = answers.filter(
     (answer) => answer.confidence === "low" && !answer.manualOnly,
   ).length;
+  const isGoogle = application?.kind === "google-form";
 
   return (
     <div className="apply-shell">
-      <ol className="apply-steps" aria-label="Apply steps">
+      <ol className="apply-steps apply-steps-4" aria-label="Apply steps">
         {[
           { id: "link", label: "Link" },
           { id: "review", label: "Review" },
+          { id: "fill", label: "Fill" },
           { id: "done", label: "Done" },
         ].map((item, index) => {
-          const active =
-            step === item.id ||
-            (step === "review" && item.id === "link") ||
-            (step === "done" && item.id !== "done");
+          const order = ["link", "review", "fill", "done"] as Step[];
+          const currentIdx = order.indexOf(step);
+          const itemIdx = order.indexOf(item.id as Step);
           const current = step === item.id;
+          const done = itemIdx < currentIdx;
           return (
             <li
               key={item.id}
               className={
-                current ? "apply-step current" : active ? "apply-step done" : "apply-step"
+                current
+                  ? "apply-step current"
+                  : done
+                    ? "apply-step done"
+                    : "apply-step"
               }
             >
               <span>{index + 1}</span>
@@ -240,9 +277,10 @@ export function ApplyWorkspace() {
           <div>
             <h2>Apply desk</h2>
             <p>
-              Paste a Google Form or any program application link. InternHarbor
-              fills answers from your background, you review, then submit or
-              paste.
+              Paste any application link — Google Forms, Greenhouse, Lever,
+              Workday, Typeform, school portals, and more. InternHarbor reads
+              the page, drafts answers from your background, then autofills the
+              live form.
             </p>
           </div>
           <Link className="btn-ghost" href="/profile">
@@ -261,7 +299,7 @@ export function ApplyWorkspace() {
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://docs.google.com/forms/... or any apply page"
+                placeholder="https://… any application or form link"
               />
             </label>
             <div className="form-actions">
@@ -271,7 +309,7 @@ export function ApplyWorkspace() {
                 disabled={loading}
                 onClick={() => prepareApplication()}
               >
-                {loading ? "Reading & drafting…" : "Prepare application"}
+                {loading ? "Reading page & drafting…" : "Prepare application"}
               </button>
               <button
                 type="button"
@@ -291,11 +329,10 @@ export function ApplyWorkspace() {
                 <h3>{application.title}</h3>
                 <p>{application.description || application.url}</p>
                 <div className="tag-row">
-                  <span>{application.kind}</span>
+                  <span>{application.platform}</span>
+                  <span>{application.questions.length} fields</span>
                   <span>
-                    {application.supportsAutoSubmit
-                      ? "Auto-submit available"
-                      : "Copy & paste flow"}
+                    {isGoogle ? "Direct submit available" : "Live-page autofill"}
                   </span>
                   {provider ? <span>{provider}</span> : null}
                 </div>
@@ -313,10 +350,10 @@ export function ApplyWorkspace() {
             {(manualCount > 0 || lowConfidence > 0) && (
               <p className="provider-note">
                 {manualCount > 0
-                  ? `${manualCount} field(s) need manual upload. `
+                  ? `${manualCount} file upload(s) stay manual. `
                   : ""}
                 {lowConfidence > 0
-                  ? `${lowConfidence} answer(s) are low-confidence — double-check them.`
+                  ? `${lowConfidence} answer(s) are low-confidence — edit them before filling.`
                   : ""}
               </p>
             )}
@@ -333,8 +370,7 @@ export function ApplyWorkspace() {
                   <p className="rationale">{answer.rationale}</p>
                   {answer.manualOnly ? (
                     <p className="empty-state">
-                      Complete this file upload on the original form after
-                      submit, or before if required.
+                      Upload this on the live page after autofill.
                     </p>
                   ) : answer.type === "paragraph" ? (
                     <textarea
@@ -356,44 +392,133 @@ export function ApplyWorkspace() {
               ))}
             </div>
 
-            {application.kind === "google-form" ? (
-              <label className="checkbox-label confirm-row">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(e) => setConfirmed(e.target.checked)}
-                />
-                I’ve reviewed every answer and want InternHarbor to submit this
-                Google Form now.
-              </label>
+            {isGoogle ? (
+              <>
+                <label className="checkbox-label confirm-row">
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    onChange={(e) => setConfirmed(e.target.checked)}
+                  />
+                  I’ve reviewed every answer and want InternHarbor to submit this
+                  Google Form now.
+                </label>
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setStep("link")}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={launchPageFill}
+                  >
+                    Autofill in browser instead
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={submitting}
+                    onClick={submitGoogle}
+                  >
+                    {submitting ? "Submitting…" : "Submit Google Form"}
+                  </button>
+                </div>
+              </>
             ) : (
-              <p className="provider-note">
-                This site can’t be auto-submitted. We’ll open it and keep your
-                answers here to copy.
-              </p>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setStep("link")}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={launchPageFill}
+                >
+                  Autofill on live page
+                </button>
+              </div>
             )}
+          </div>
+        ) : null}
+
+        {step === "fill" && application ? (
+          <div className="apply-fill-stage">
+            <h3>Autofill the live page</h3>
+            <p className="provider-note">
+              The application tab should be open and the fill script is on your
+              clipboard. This works on basically any platform because it runs
+              inside that page.
+            </p>
+
+            <ol className="fill-instructions">
+              <li>
+                Switch to the <strong>{application.platform}</strong> tab (
+                <a
+                  href={application.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  reopen
+                </a>
+                ).
+              </li>
+              <li>
+                Press <kbd>F12</kbd> or <kbd>Cmd/Ctrl + Option + J</kbd> to open
+                the console.
+              </li>
+              <li>
+                Paste (<kbd>Cmd/Ctrl + V</kbd>) and press <kbd>Enter</kbd>.
+                Fields highlight in teal as they’re filled.
+              </li>
+              <li>Review, handle file uploads / CAPTCHA, then submit there.</li>
+            </ol>
 
             <div className="form-actions">
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => setStep("link")}
+                onClick={copyFillScript}
               >
-                Back
+                {scriptCopied ? "Script copied" : "Copy fill script again"}
               </button>
+              <a className="btn-secondary" href={bookmarklet}>
+                Autofill bookmarklet
+              </a>
               <button
                 type="button"
                 className="btn-primary"
-                disabled={submitting}
-                onClick={submitApplication}
+                onClick={markApplied}
               >
-                {submitting
-                  ? "Working…"
-                  : application.kind === "google-form"
-                    ? "Submit application"
-                    : "Open & mark applied"}
+                I submitted — mark applied
               </button>
             </div>
+
+            <details className="fill-advanced">
+              <summary>Keep a reusable bookmarklet</summary>
+              <p>
+                Drag this link to your bookmarks bar, open any application page,
+                then click the bookmark after preparing answers here.
+              </p>
+              <a className="bookmarklet-link" href={bookmarklet}>
+                InternHarbor Autofill
+              </a>
+            </details>
+
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setStep("review")}
+            >
+              ← Back to answers
+            </button>
           </div>
         ) : null}
 

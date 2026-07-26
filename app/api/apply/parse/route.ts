@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseApplicationUrl } from "@/lib/google-forms";
+import { parseAnyApplication } from "@/lib/universal-parse";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const application = await parseApplicationUrl(body.url.trim());
+    const application = await parseAnyApplication(body.url.trim());
     return NextResponse.json({ application });
   } catch (error) {
     const message =

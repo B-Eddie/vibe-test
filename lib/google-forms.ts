@@ -251,61 +251,18 @@ export async function parseGoogleForm(
     fbzx,
     collectEmail,
     supportsAutoSubmit,
+    fillMode: "auto-submit",
+    platform: "Google Forms",
   };
 }
 
 export async function parseApplicationUrl(
   rawUrl: string,
 ): Promise<ParsedApplication> {
-  const kind = classifyApplicationUrl(rawUrl);
-  if (kind === "google-form") {
+  if (classifyApplicationUrl(rawUrl) === "google-form") {
     return parseGoogleForm(rawUrl);
   }
-
-  let title = "Web application";
-  try {
-    title = new URL(rawUrl).hostname.replace(/^www\./, "");
-  } catch {
-    /* ignore */
-  }
-
-  return {
-    kind: "web",
-    url: rawUrl,
-    submitUrl: null,
-    title,
-    description:
-      "This isn’t a Google Form. InternHarbor will prepare answers from your background so you can paste them into the application.",
-    questions: [
-      {
-        id: "cover",
-        entryId: "cover",
-        title: "Cover / introduction paragraph",
-        type: "paragraph",
-        required: true,
-        options: [],
-      },
-      {
-        id: "why",
-        entryId: "why",
-        title: "Why are you interested in this opportunity?",
-        type: "paragraph",
-        required: true,
-        options: [],
-      },
-      {
-        id: "experience",
-        entryId: "experience",
-        title: "Relevant experience summary",
-        type: "paragraph",
-        required: true,
-        options: [],
-      },
-    ],
-    fbzx: null,
-    collectEmail: false,
-    supportsAutoSubmit: false,
-  };
+  throw new Error("Use parseAnyApplication for non-Google URLs");
 }
 
 export async function submitGoogleForm(options: {

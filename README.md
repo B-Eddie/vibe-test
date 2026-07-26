@@ -1,41 +1,33 @@
-# InternHarbor — Find & Apply
+# InternHarbor — Find & Apply anywhere
 
-Personal Next.js app for high school students: discover internships/programs and apply from one desk using your saved background.
+Personal Next.js app for high school students: discover opportunities and apply on **any** platform from one desk.
 
-## What it does
+## Flow
 
-- **Find** — curated HS programs + live Hack Club AI web search
-- **Background** — reusable applicant packet (contact, school, résumé, custom facts)
-- **Apply** — paste a Google Form or any application URL; auto-fill from your background; review; submit Google Forms or copy/paste elsewhere
-- **Tracker** — saved → drafted → ready → applied → rejected
+1. Save your **Background** (contact, school, résumé, reusable facts)
+2. **Find** programs or paste any application URL
+3. InternHarbor reads the page (HTML + AI), drafts answers
+4. You review, then:
+   - **Google Forms** → optional one-click submit
+   - **Everything else** → live-page autofill (console paste / bookmarklet) that fills fields on Greenhouse, Lever, Workday, Typeform, school portals, and custom sites
 
 ## Setup
 
-1. Get a free key at [ai.hackclub.com](https://ai.hackclub.com/)
-2. Create `.env.local`:
-
 ```bash
-HACKCLUB_API_KEY=your_key_here
-```
-
-3. Run:
-
-```bash
+HACKCLUB_API_KEY=your_key_from_ai.hackclub.com
 npm install
 npm run dev
 ```
 
-## Deploy on Vercel
+Deploy on Vercel with that single env var.
 
-Set one env var: `HACKCLUB_API_KEY`. No cron or database required.
+## How universal autofill works
 
-## Apply flow notes
+Browsers block websites from silently typing into another site. InternHarbor instead:
 
-- **Google Forms**: InternHarbor reads the public form structure, drafts answers with Hack Club AI, lets you edit, then POSTs to `formResponse` after you confirm.
-- **Other sites**: prepares answer packets you can paste, opens the page, and marks the tracker.
-- File-upload questions stay manual.
-- Forms that require Google sign-in may not be readable.
+1. Extracts fields from the target page (and uses Hack Club AI when the page is a heavy SPA)
+2. Fills answers from your background
+3. Generates a page script that matches labels / names / placeholders and sets values (including React-controlled inputs)
+4. You run that script on the live application tab (paste in console, or use the bookmarklet)
 
-## Privacy
-
-Profile, answers, and tracker stay in your browser (`localStorage`). Nothing auto-submits until you confirm on the Apply desk.
+File uploads and CAPTCHAs stay manual by design.

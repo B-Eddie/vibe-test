@@ -45,7 +45,13 @@ export type TrackerStatus =
   | "applied"
   | "rejected";
 
-export type ApplicationKind = "internship" | "google-form" | "web";
+export type ApplicationKind =
+  | "internship"
+  | "google-form"
+  | "html-form"
+  | "web";
+
+export type FillMode = "auto-submit" | "page-fill";
 
 export type TrackerEntry = {
   internshipId: string;
@@ -84,6 +90,10 @@ export type FormQuestion = {
   required: boolean;
   options: string[];
   manualOnly?: boolean;
+  /** Hints used by the in-page autofiller to find the live field */
+  matchHints?: string[];
+  name?: string;
+  selector?: string;
 };
 
 export type ParsedApplication = {
@@ -96,6 +106,9 @@ export type ParsedApplication = {
   fbzx: string | null;
   collectEmail: boolean;
   supportsAutoSubmit: boolean;
+  fillMode: FillMode;
+  platform: string;
+  pageTextPreview?: string;
 };
 
 export type FilledAnswer = {
@@ -107,6 +120,9 @@ export type FilledAnswer = {
   confidence: "high" | "medium" | "low";
   rationale: string;
   manualOnly?: boolean;
+  matchHints?: string[];
+  name?: string;
+  selector?: string;
 };
 
 export const EMPTY_PROFILE: StudentProfile = {

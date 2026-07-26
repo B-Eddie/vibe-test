@@ -41,6 +41,9 @@ function heuristicFill(
         confidence: "low",
         rationale: "File upload — complete this manually in the form",
         manualOnly: true,
+        matchHints: question.matchHints,
+        name: question.name,
+        selector: question.selector,
       };
     }
 
@@ -142,6 +145,9 @@ function heuristicFill(
       confidence,
       rationale,
       manualOnly: question.manualOnly,
+      matchHints: question.matchHints,
+      name: question.name,
+      selector: question.selector,
     };
   });
 }
