@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Internship, StudentProfile } from "@/lib/types";
-import { getHackClubClient, HACKCLUB_MODEL } from "@/lib/hackclub";
+import { geminiText, getApiKey } from "@/lib/gemini";
 
 export const dynamic = "force-dynamic";
 
@@ -73,50 +73,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const client = getHackClubClient();
-  if (!client) {
-    return NextResponse.json(localFallbackDraft(body.profile, body.internship));
+  const fallback = localFallbackDraft(body.profile, body.internship);
+  if (!getApiKey()) {
+    return NextResponse.json(fallback);
   }
 
-  try {
-    const completion = await client.chat.completions.create({
-      model: HACKCLUB_MODEL,
-      temperature: 0.7,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You help a high school student draft internship application materials. Reply with ONLY valid JSON (no markdown) with keys coverEmail and whyMe. Keep tone sincere, specific, and concise. Never invent awards or experience not present in the profile. Do not submit anything; drafting only.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            profile: body.profile,
-            internship: {
-              title: body.internship.title,
-              org: body.internship.org,
-              description: body.internship.description,
-              tags: body.internship.tags,
-              location: body.internship.location,
-            },
-          }),
-        },
-      ],
-    });
+  const content = await geminiText({
+    json: true,
+    system:
+      "You help a high school student draft internship application materials. Reply with ONLY valid JSON with keys coverEmail and whyMe. Keep tone sincere, specific, and concise. Never invent awards or experience not present in the profile. Do not submit anything; drafting only.",
+    user: JSON.stringify({
+      profile: body.profile,
+      internship: {
+        title: body.internship.title,
+        org: body.internship.org,
+        description: body.internship.description,
+        tags: body.internship.tags,
+        location: body.internship.location,
+      },
+    }),
+  });
 
-    const content = completion.choices[0]?.message?.content;
-    const fallback = localFallbackDraft(body.profile, body.internship);
-    if (!content) {
-      return NextResponse.json(fallback);
-    }
-
-    const parsed = extractJsonObject(content);
-    return NextResponse.json({
-      coverEmail: parsed?.coverEmail ?? fallback.coverEmail,
-      whyMe: parsed?.whyMe ?? fallback.whyMe,
-      provider: "hackclub-ai" as const,
-    });
-  } catch {
-    return NextResponse.json(localFallbackDraft(body.profile, body.internship));
+  if (!content) {
+    return NextResponse.json(fallback);
   }
+
+  const parsed = extractJsonObject(content);
+  return NextResponse.json({
+    coverEmail: parsed?.coverEmail ?? fallback.coverEmail,
+    whyMe: parsed?.whyMe ?? fallback.whyMe,
+    provider: "gemini" as const,
+  });
 }

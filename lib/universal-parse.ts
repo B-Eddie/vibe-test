@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { getApiKey, getHackClubClient, HACKCLUB_BASE_URL, HACKCLUB_MODEL } from "./hackclub";
+import { geminiText, getApiKey } from "./gemini";
 import {
   classifyApplicationUrl,
   parseGoogleForm,
@@ -211,30 +211,19 @@ async function fetchPage(url: string): Promise<{ html: string; finalUrl: string 
   return { html, finalUrl: res.url || url };
 }
 
-async function fetchExaText(url: string): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) return "";
-  try {
-    const res = await fetch(`${HACKCLUB_BASE_URL}/exa/contents`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        urls: [url],
-        text: { maxCharacters: 8000 },
-      }),
-      cache: "no-store",
-    });
-    if (!res.ok) return "";
-    const data = (await res.json()) as {
-      results?: Array<{ text?: string; title?: string }>;
-    };
-    return data.results?.[0]?.text?.replace(/\s+/g, " ").trim() || "";
-  } catch {
-    return "";
-  }
+async function enrichPageTextWithGemini(
+  url: string,
+  existingText: string,
+): Promise<string> {
+  if (!getApiKey() || existingText.length > 1500) return existingText;
+  const summary = await geminiText({
+    search: true,
+    system:
+      "Summarize the application questions and required fields on this page. List every applicant-facing prompt you can find. Plain text only.",
+    user: `URL: ${url}\nKnown page text:\n${existingText.slice(0, 3000)}`,
+  });
+  if (!summary) return existingText;
+  return `${existingText}\n${summary}`.trim();
 }
 
 async function aiExtractQuestions(
@@ -242,69 +231,54 @@ async function aiExtractQuestions(
   platform: string,
   pageText: string,
 ): Promise<FormQuestion[]> {
-  const client = getHackClubClient();
-  if (!client || pageText.length < 40) return [];
+  if (!getApiKey() || pageText.length < 40) return [];
 
-  try {
-    const completion = await client.chat.completions.create({
-      model: HACKCLUB_MODEL,
-      temperature: 0.2,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            url: pageUrl,
-            platform,
-            pageText: pageText.slice(0, 10000),
-          }),
-        },
-      ],
-    });
+  const content = await geminiText({
+    json: true,
+    system:
+      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff.",
+    user: JSON.stringify({
+      url: pageUrl,
+      platform,
+      pageText: pageText.slice(0, 10000),
+    }),
+  });
 
-    const content = completion.choices[0]?.message?.content;
-    const parsed = content ? extractJsonArray(content) : null;
-    if (!parsed) return [];
+  const parsed = content ? extractJsonArray(content) : null;
+  if (!parsed) return [];
 
-    return parsed
-      .map((item, index): FormQuestion | null => {
-        if (!item || typeof item !== "object") return null;
-        const row = item as {
-          id?: string;
-          title?: string;
-          type?: FormQuestionType;
-          required?: boolean;
-          options?: string[];
-          matchHints?: string[];
-        };
-        const title = row.title?.trim();
-        if (!title) return null;
-        const id = (row.id || `ai-${index}`).toString();
-        const type = row.type || "short";
-        return {
-          id,
-          entryId: id,
+  return parsed
+    .map((item, index): FormQuestion | null => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as {
+        id?: string;
+        title?: string;
+        type?: FormQuestionType;
+        required?: boolean;
+        options?: string[];
+        matchHints?: string[];
+      };
+      const title = row.title?.trim();
+      if (!title) return null;
+      const id = (row.id || `ai-${index}`).toString();
+      const type = row.type || "short";
+      return {
+        id,
+        entryId: id,
+        title,
+        type,
+        required: Boolean(row.required),
+        options: Array.isArray(row.options) ? row.options : [],
+        manualOnly: type === "file",
+        matchHints: [
           title,
-          type,
-          required: Boolean(row.required),
-          options: Array.isArray(row.options) ? row.options : [],
-          manualOnly: type === "file",
-          matchHints: [
-            title,
-            ...(Array.isArray(row.matchHints) ? row.matchHints : []),
-          ]
-            .map((hint) => hint.trim())
-            .filter(Boolean),
-        };
-      })
-      .filter((item): item is FormQuestion => Boolean(item));
-  } catch {
-    return [];
-  }
+          ...(Array.isArray(row.matchHints) ? row.matchHints : []),
+        ]
+          .map((hint) => hint.trim())
+          .filter(Boolean),
+      };
+    })
+    .filter((item): item is FormQuestion => Boolean(item));
 }
 
 function mergeQuestions(
@@ -364,13 +338,11 @@ export async function parseAnyApplication(
   const { html, finalUrl } = await fetchPage(rawUrl.trim());
   const platform = detectPlatform(finalUrl, html);
   const extracted = extractHtmlQuestions(html, finalUrl);
-  let pageText = extracted.text;
-  if (pageText.length < 500) {
-    const exa = await fetchExaText(finalUrl);
-    if (exa) pageText = `${pageText}\n${exa}`.trim();
-  }
-
   let questions = extracted.questions;
+  let pageText = extracted.text;
+  if (pageText.length < 500 || questions.length < 3) {
+    pageText = await enrichPageTextWithGemini(finalUrl, pageText);
+  }
   if (questions.length < 3) {
     const aiQuestions = await aiExtractQuestions(finalUrl, platform, pageText);
     questions = mergeQuestions(questions, aiQuestions);

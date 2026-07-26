@@ -1,4 +1,4 @@
-import { getHackClubClient, HACKCLUB_MODEL } from "./hackclub";
+import { geminiText, getApiKey } from "./gemini";
 import type {
   FilledAnswer,
   FormQuestion,
@@ -156,97 +156,85 @@ export async function fillApplicationAnswers(options: {
   profile: StudentProfile;
   application: ParsedApplication;
   opportunityContext?: string;
-}): Promise<{ answers: FilledAnswer[]; provider: "hackclub-ai" | "local-fallback" }> {
+}): Promise<{ answers: FilledAnswer[]; provider: "gemini" | "local-fallback" }> {
   const fallback = heuristicFill(options.profile, options.application.questions);
-  const client = getHackClubClient();
-  if (!client) {
+  if (!getApiKey()) {
     return { answers: fallback, provider: "local-fallback" };
   }
 
-  try {
-    const completion = await client.chat.completions.create({
-      model: HACKCLUB_MODEL,
-      temperature: 0.4,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You fill internship/program applications for a high school student. Return ONLY a JSON array. Each item: {entryId, value, confidence: high|medium|low, rationale}. Use only facts from the student profile. For multiple_choice/dropdown/checkboxes, value MUST be one of the provided options (checkboxes: join selected options with ||). Leave value empty if unknown. Never invent achievements. For file questions return empty value.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            student: profileToPromptContext(options.profile),
-            opportunity: options.opportunityContext ?? options.application.title,
-            formTitle: options.application.title,
-            formDescription: options.application.description,
-            questions: options.application.questions.map((q) => ({
-              entryId: q.entryId,
-              title: q.title,
-              type: q.type,
-              required: q.required,
-              options: q.options,
-              manualOnly: q.manualOnly,
-            })),
-          }),
-        },
-      ],
-    });
+  const content = await geminiText({
+    json: true,
+    system:
+      "You fill internship/program applications for a high school student. Return ONLY a JSON array. Each item: {entryId, value, confidence: high|medium|low, rationale}. Use only facts from the student profile. For multiple_choice/dropdown/checkboxes, value MUST be one of the provided options (checkboxes: join selected options with ||). Leave value empty if unknown. Never invent achievements. For file questions return empty value.",
+    user: JSON.stringify({
+      student: profileToPromptContext(options.profile),
+      opportunity: options.opportunityContext ?? options.application.title,
+      formTitle: options.application.title,
+      formDescription: options.application.description,
+      questions: options.application.questions.map((q) => ({
+        entryId: q.entryId,
+        title: q.title,
+        type: q.type,
+        required: q.required,
+        options: q.options,
+        manualOnly: q.manualOnly,
+      })),
+    }),
+  });
 
-    const content = completion.choices[0]?.message?.content;
-    const parsed = content ? extractJsonArray(content) : null;
-    if (!parsed) {
-      return { answers: fallback, provider: "local-fallback" };
-    }
+  const parsed = content ? extractJsonArray(content) : null;
+  if (!parsed) {
+    return { answers: fallback, provider: "local-fallback" };
+  }
 
-    const byEntry = new Map<string, { value?: string; confidence?: string; rationale?: string }>();
-    for (const item of parsed) {
-      if (!item || typeof item !== "object") continue;
-      const row = item as {
-        entryId?: string;
-        value?: string;
-        confidence?: string;
-        rationale?: string;
-      };
-      if (!row.entryId) continue;
-      byEntry.set(row.entryId, row);
-    }
+  const byEntry = new Map<
+    string,
+    { value?: string; confidence?: string; rationale?: string }
+  >();
+  for (const item of parsed) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as {
+      entryId?: string;
+      value?: string;
+      confidence?: string;
+      rationale?: string;
+    };
+    if (!row.entryId) continue;
+    byEntry.set(row.entryId, row);
+  }
 
-    const answers = fallback.map((base) => {
-      const ai = byEntry.get(base.entryId);
-      if (!ai) return base;
-      let value = typeof ai.value === "string" ? ai.value : base.value;
-      const question = options.application.questions.find(
-        (q) => q.entryId === base.entryId,
+  const answers = fallback.map((base) => {
+    const ai = byEntry.get(base.entryId);
+    if (!ai) return base;
+    let value = typeof ai.value === "string" ? ai.value : base.value;
+    const question = options.application.questions.find(
+      (q) => q.entryId === base.entryId,
+    );
+    if (
+      question &&
+      (question.type === "multiple_choice" || question.type === "dropdown") &&
+      question.options.length &&
+      value &&
+      !question.options.includes(value)
+    ) {
+      const match = question.options.find(
+        (option) => option.toLowerCase() === value.toLowerCase(),
       );
-      if (
-        question &&
-        (question.type === "multiple_choice" || question.type === "dropdown") &&
-        question.options.length &&
-        value &&
-        !question.options.includes(value)
-      ) {
-        const match = question.options.find(
-          (option) => option.toLowerCase() === value.toLowerCase(),
-        );
-        value = match ?? base.value;
-      }
-      const confidence =
-        ai.confidence === "high" ||
-        ai.confidence === "medium" ||
-        ai.confidence === "low"
-          ? ai.confidence
-          : base.confidence;
-      return {
-        ...base,
-        value,
-        confidence,
-        rationale: ai.rationale || base.rationale,
-      };
-    });
+      value = match ?? base.value;
+    }
+    const confidence =
+      ai.confidence === "high" ||
+      ai.confidence === "medium" ||
+      ai.confidence === "low"
+        ? ai.confidence
+        : base.confidence;
+    return {
+      ...base,
+      value,
+      confidence,
+      rationale: ai.rationale || base.rationale,
+    };
+  });
 
-    return { answers, provider: "hackclub-ai" };
-  } catch {
-    return { answers: fallback, provider: "local-fallback" };
-  }
+  return { answers, provider: "gemini" };
 }

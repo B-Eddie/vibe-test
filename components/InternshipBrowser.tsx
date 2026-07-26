@@ -121,10 +121,10 @@ export function InternshipBrowser({
 
       <p className="provider-note">
         {loadingLive
-          ? "Searching live internships with Hack Club AI…"
+          ? "Searching live internships with Gemini…"
           : liveSearch
-            ? "Showing curated programs plus live AI web search results."
-            : "Showing curated programs. Add HACKCLUB_API_KEY for live AI search."}
+            ? "Showing curated programs plus live Gemini search results."
+            : "Showing curated programs. Add GEMINI_API_KEY for live AI search."}
       </p>
 
       <div className="internship-list">

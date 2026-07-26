@@ -9,9 +9,9 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "linkedom": "^0.18.13",
     "next": "15.5.22",
-    "openai": "^6.49.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
