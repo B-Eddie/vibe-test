@@ -84,6 +84,14 @@ export type FormQuestionType =
   | "email"
   | "unknown";
 
+/** Show this question only when another question matches one of these values. */
+export type FormVisibilityRule = {
+  entryId: string;
+  values: string[];
+  /** Default "is" / "any": answer must match one of values. */
+  comparison?: "is" | "any" | "equals" | "not_equals" | "contains";
+};
+
 export type FormQuestion = {
   id: string;
   entryId: string;
@@ -100,6 +108,10 @@ export type FormQuestion = {
   sectionIndex?: number;
   /** Option → next section (null = submit / end) for branching questions */
   optionBranches?: FormOptionBranch[];
+  /** When set, question stays hidden until every rule matches current answers. */
+  visibleWhen?: FormVisibilityRule[];
+  /** True when the source form starts this field collapsed / gated. */
+  initiallyHidden?: boolean;
 };
 
 export type FormOptionBranch = {

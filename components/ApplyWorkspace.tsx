@@ -512,9 +512,14 @@ export function ApplyWorkspace() {
     setSectionLoadingLabel(
       nextSectionMeta
         ? `Drafting “${nextSectionMeta.title}”…`
-        : nextSection === null
-          ? "Updating path…"
-          : "Drafting the next section…",
+        : canChangeFormPath(app, question) &&
+            (app.questions || []).some((item) =>
+              item.visibleWhen?.some((rule) => rule.entryId === entryId),
+            )
+          ? "Drafting newly unlocked questions…"
+          : nextSection === null
+            ? "Updating path…"
+            : "Drafting the next section…",
     );
 
     try {
@@ -801,10 +806,14 @@ export function ApplyWorkspace() {
 
                 return (
                   <div key={`section-${sectionIndex}`} className="apply-section-block">
-                    {branching || (normalizedApp.sections?.length || 0) > 1 ? (
+                    {section?.title ? (
                       <div className="apply-section-heading">
-                        <h4>{section?.title || `Section ${sectionIndex + 1}`}</h4>
-                        {section?.description ? <p>{section.description}</p> : null}
+                        <h4>{section.title}</h4>
+                        {section.description ? <p>{section.description}</p> : null}
+                      </div>
+                    ) : branching && (normalizedApp.sections?.length || 0) > 1 ? (
+                      <div className="apply-section-heading">
+                        <h4>{`Section ${sectionIndex + 1}`}</h4>
                       </div>
                     ) : null}
                     {sectionAnswers.map((answer) => {
@@ -817,12 +826,21 @@ export function ApplyWorkspace() {
                         <div key={answer.entryId} className="answer-card-stack">
                           <div className="answer-card">
                             <div className="answer-card-head">
-                              <strong>{answer.title}</strong>
+                              <strong>{question?.title || answer.title}</strong>
                               <span className={`confidence ${answer.confidence}`}>
                                 {answer.manualOnly
                                   ? "manual"
                                   : canChangeFormPath(normalizedApp, question)
-                                    ? "branch"
+                                    ? question?.visibleWhen?.length ||
+                                        (normalizedApp.questions || []).some(
+                                          (item) =>
+                                            item.visibleWhen?.some(
+                                              (rule) =>
+                                                rule.entryId === answer.entryId,
+                                            ),
+                                        )
+                                      ? "unlock"
+                                      : "branch"
                                     : answer.confidence}
                               </span>
                             </div>
