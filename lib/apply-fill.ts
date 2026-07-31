@@ -1,4 +1,9 @@
 import { geminiGenerate, extractJsonArray, getApiKey } from "./gemini";
+import {
+  looksLikeContinueOption,
+  looksLikeSubmitOption,
+  preferredNavigationOption,
+} from "./form-path";
 import type {
   FilledAnswer,
   FormQuestion,
@@ -169,6 +174,16 @@ function coerceOptionValue(
   }
 
   if (value && question.options.includes(value)) {
+    // Navigation questions: never keep an accidental "Submit form" when a
+    // continue/next option exists — applications should complete the form.
+    const navPreferred = preferredNavigationOption(question);
+    if (
+      looksLikeSubmitOption(value) &&
+      navPreferred &&
+      navPreferred !== value
+    ) {
+      return { value: navPreferred, confidence: "medium" };
+    }
     return { value, confidence: "high" };
   }
 
@@ -178,7 +193,22 @@ function coerceOptionValue(
       option.toLowerCase().includes(value.toLowerCase()) ||
       value.toLowerCase().includes(option.toLowerCase()),
   );
-  if (match) return { value: match, confidence: "medium" };
+  if (match) {
+    const navPreferred = preferredNavigationOption(question);
+    if (
+      looksLikeSubmitOption(match) &&
+      navPreferred &&
+      navPreferred !== match
+    ) {
+      return { value: navPreferred, confidence: "medium" };
+    }
+    return { value: match, confidence: "medium" };
+  }
+
+  const navPreferred = preferredNavigationOption(question);
+  if (navPreferred) {
+    return { value: navPreferred, confidence: "medium" };
+  }
 
   const guessed =
     pickOption(question.options, [
@@ -187,7 +217,9 @@ function coerceOptionValue(
       profile.grade,
       profile.city,
       profile.remoteOk ? "remote" : "in-person",
-    ]) || question.options[0];
+    ]) ||
+    question.options.find((option) => !looksLikeSubmitOption(option)) ||
+    question.options[0];
   return { value: guessed, confidence: "low" };
 }
 
@@ -286,11 +318,25 @@ function heuristicFill(
       confidence = profile.skills.length ? "high" : "low";
       rationale = profile.skills.length ? "From skills" : "Drafted from interests";
     } else if (question.options.length) {
-      const drafted = draftNarrative(profile, question, opportunity);
-      const coerced = coerceOptionValue(question, drafted, profile);
-      value = coerced.value;
-      confidence = coerced.confidence;
-      rationale = "Best-fit option from your background — confirm before submit";
+      const navPreferred = preferredNavigationOption(question);
+      if (
+        navPreferred &&
+        (question.optionBranches?.length ||
+          question.options.some(
+            (option) =>
+              looksLikeSubmitOption(option) || looksLikeContinueOption(option),
+          ))
+      ) {
+        value = navPreferred;
+        confidence = "medium";
+        rationale = "Continue to the next section so the full application is drafted";
+      } else {
+        const drafted = draftNarrative(profile, question, opportunity);
+        const coerced = coerceOptionValue(question, drafted, profile);
+        value = coerced.value;
+        confidence = coerced.confidence;
+        rationale = "Best-fit option from your background — confirm before submit";
+      }
     } else {
       const fact = pickProfileFact(profile, title);
       if (fact) {
@@ -318,7 +364,10 @@ function heuristicFill(
       const coerced = coerceOptionValue(question, value, profile);
       value = coerced.value;
       if (!value) {
-        value = question.options[0];
+        value =
+          preferredNavigationOption(question) ||
+          question.options.find((option) => !looksLikeSubmitOption(option)) ||
+          question.options[0]!;
         confidence = "low";
       } else if (confidence === "high" && coerced.confidence !== "high") {
         confidence = coerced.confidence;
@@ -361,6 +410,7 @@ Rules:
 - Tailor essay/short-answer text to EACH question. Do not paste the identical bio into every field.
 - Do not invent specific awards, GPAs, employers, or credentials that are not in the profile. General sincere interest and motivation statements are OK when details are missing.
 - For multiple_choice/dropdown: value MUST be exactly one of the provided options.
+- For navigation / section questions with options like "Submit form" vs "Proceed to next section" (or Continue / Next section): ALWAYS choose the option that continues to the next section so the full application can be completed. Only choose "Submit form" / end-form if there is no continue option.
 - For checkboxes: join selected options with || (each must be an provided option).
 - For file/manualOnly questions: value must be "".
 - Keep answers concise and first-person where appropriate.`;
@@ -409,6 +459,8 @@ export async function fillApplicationAnswers(options: {
         required: q.required,
         options: q.options,
         manualOnly: q.manualOnly,
+        optionBranches: q.optionBranches,
+        sectionIndex: q.sectionIndex,
       })),
     }),
   });

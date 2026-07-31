@@ -16,20 +16,102 @@ function normalizeChoice(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/** Option labels that mean end the form now (do not open later sections). */
+export function looksLikeSubmitOption(label: string): boolean {
+  const t = normalizeChoice(label);
+  if (!t) return false;
+  if (
+    /^(submit(\s+(the\s+)?(form|application))?|end(\s+(the\s+)?form)?|finish|done|stop)$/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return (
+    /\bsubmit\b/.test(t) &&
+    /\b(form|application)\b/.test(t) &&
+    !/\b(proceed|continue|next)\b/.test(t)
+  );
+}
+
+/** Option labels that mean continue into a later section. */
+export function looksLikeContinueOption(label: string): boolean {
+  const t = normalizeChoice(label);
+  if (!t || looksLikeSubmitOption(t)) return false;
+  return /\b(proceed|continue|next section|next page|go to (the )?next)\b/.test(
+    t,
+  );
+}
+
 function findBranch(
   branches: FormOptionBranch[] | undefined,
   value: string,
 ): FormOptionBranch | undefined {
   if (!branches?.length || !value.trim()) return undefined;
   const want = normalizeChoice(value);
-  return (
-    branches.find((item) => normalizeChoice(item.option) === want) ||
-    branches.find(
-      (item) =>
-        normalizeChoice(item.option).includes(want) ||
-        want.includes(normalizeChoice(item.option)),
-    )
+  const exact = branches.find((item) => normalizeChoice(item.option) === want);
+  if (exact) return exact;
+
+  // Prefer longer option labels so "Submit form" wins over a short fuzzy "form".
+  const fuzzy = [...branches].sort(
+    (a, b) => normalizeChoice(b.option).length - normalizeChoice(a.option).length,
   );
+  return fuzzy.find((item) => {
+    const option = normalizeChoice(item.option);
+    return option.includes(want) || want.includes(option);
+  });
+}
+
+function resolveBranchNext(
+  question: FormQuestion,
+  value: string,
+  fallbackNext: number | null,
+): number | null {
+  if (looksLikeSubmitOption(value)) return null;
+  const branch = findBranch(question.optionBranches, value);
+  if (branch) return branch.nextSectionIndex;
+  if (looksLikeContinueOption(value)) return fallbackNext;
+  // Known branching question with no matching option → do not invent a path.
+  if (question.optionBranches?.length) {
+    const hasTerminal = question.optionBranches.some(
+      (item) => item.nextSectionIndex === null || looksLikeSubmitOption(item.option),
+    );
+    const hasContinue = question.optionBranches.some(
+      (item) =>
+        item.nextSectionIndex !== null || looksLikeContinueOption(item.option),
+    );
+    if (hasTerminal && hasContinue) return null;
+  }
+  return fallbackNext;
+}
+
+/** Prefer continue/next over submit/end when drafting an application path. */
+export function preferredNavigationOption(question: FormQuestion): string | null {
+  if (!question.options.length) return null;
+  const continueOpt = question.options.find((option) =>
+    looksLikeContinueOption(option),
+  );
+  if (continueOpt) return continueOpt;
+
+  if (question.optionBranches?.length) {
+    const continueBranch = question.optionBranches.find(
+      (branch) =>
+        branch.nextSectionIndex !== null &&
+        !looksLikeSubmitOption(branch.option),
+    );
+    if (continueBranch) {
+      const match = question.options.find(
+        (option) =>
+          normalizeChoice(option) === normalizeChoice(continueBranch.option),
+      );
+      return match || continueBranch.option;
+    }
+  }
+
+  const nonSubmit = question.options.find(
+    (option) => !looksLikeSubmitOption(option),
+  );
+  return nonSubmit || null;
 }
 
 /** Walk sections using current answers and branching rules. */
@@ -80,10 +162,11 @@ export function resolveFormPath(
         next = null;
         break;
       }
-      const branch = findBranch(question.optionBranches, value);
-      if (branch) {
-        next = branch.nextSectionIndex;
-      }
+      next = resolveBranchNext(
+        question,
+        value,
+        section.defaultNextSectionIndex,
+      );
     }
 
     if (waitingOnBranch || next === null || next === undefined) break;
@@ -169,12 +252,14 @@ export function nextSectionAfterAnswer(
 ): number | null {
   const question = application.questions.find((q) => q.entryId === entryId);
   if (!question) return null;
-  const branch = findBranch(question.optionBranches, value);
-  if (branch) return branch.nextSectionIndex;
   const section = application.sections?.find(
     (item) => item.index === (question.sectionIndex ?? 0),
   );
-  return section?.defaultNextSectionIndex ?? null;
+  return resolveBranchNext(
+    question,
+    value,
+    section?.defaultNextSectionIndex ?? null,
+  );
 }
 
 export function hasSectionBranching(application: ParsedApplication): boolean {
@@ -322,6 +407,8 @@ export function ensureApplicationSections(
 /**
  * Make sure every choice option has a branch target. Missing targets fall back
  * to the section's default next page so path changes still unlock later pages.
+ * Labels like "Submit form" always end the path; "Proceed to next section"
+ * always continues when a later section exists.
  */
 export function backfillOptionBranches(
   application: ParsedApplication,
@@ -343,29 +430,36 @@ export function backfillOptionBranches(
     );
     const fallbackNext = section?.defaultNextSectionIndex ?? null;
     const existing = new Map(
-      (question.optionBranches || []).map((branch) => [branch.option, branch]),
+      (question.optionBranches || []).map((branch) => [
+        normalizeChoice(branch.option),
+        branch,
+      ]),
     );
-    let optionBranches = question.options.map((option) => {
-      const prior = [...existing.entries()].find(
-        ([key]) => normalizeChoice(key) === normalizeChoice(option),
-      )?.[1];
-      return prior ?? { option, nextSectionIndex: fallbackNext };
-    });
 
-    // Recover from older parses that marked every option as "submit" because a
-    // trailing 0 was misread as navigation — if the section continues, use that.
-    const allEnd =
-      optionBranches.length > 0 &&
-      optionBranches.every((branch) => branch.nextSectionIndex === null);
-    const differentiated = optionBranches.some(
-      (branch) => branch.nextSectionIndex !== optionBranches[0]?.nextSectionIndex,
-    );
-    if (allEnd && !differentiated && fallbackNext !== null) {
-      optionBranches = question.options.map((option) => ({
-        option,
-        nextSectionIndex: fallbackNext,
-      }));
-    }
+    const optionBranches = question.options.map((option) => {
+      const prior = existing.get(normalizeChoice(option));
+      if (looksLikeSubmitOption(option)) {
+        return { option, nextSectionIndex: null };
+      }
+      if (looksLikeContinueOption(option)) {
+        return {
+          option,
+          nextSectionIndex:
+            prior?.nextSectionIndex ?? fallbackNext,
+        };
+      }
+      if (prior) {
+        // Never let a submit-like prior keep a continue target.
+        if (
+          looksLikeSubmitOption(prior.option) ||
+          (prior.nextSectionIndex === null && looksLikeSubmitOption(option))
+        ) {
+          return { option, nextSectionIndex: null };
+        }
+        return { option, nextSectionIndex: prior.nextSectionIndex };
+      }
+      return { option, nextSectionIndex: fallbackNext };
+    });
 
     return { ...question, optionBranches };
   });
