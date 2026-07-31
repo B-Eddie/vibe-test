@@ -19,6 +19,7 @@ import {
   pruneAnswersAfterQuestion,
   questionsMissingAnswers,
   resolveFormPath,
+  seedContinueNavigationAnswers,
 } from "@/lib/form-path";
 import {
   loadProfile,
@@ -291,14 +292,26 @@ export function ApplyWorkspace() {
   async function fillAlongPath(
     app: ParsedApplication,
     seedAnswers: FilledAnswer[],
+    options?: { preferContinue?: boolean },
   ) {
     const ensured = backfillOptionBranches(ensureApplicationSections(app));
-    let working = ensurePathAnswerRows(ensured, seedAnswers);
+    const preferContinue = options?.preferContinue !== false;
+    // Pre-select "Proceed / Continue" so later sections unlock for drafting.
+    let working = preferContinue
+      ? seedContinueNavigationAnswers(ensured, seedAnswers, {
+          rewriteSubmit: true,
+        })
+      : ensurePathAnswerRows(ensured, seedAnswers);
     let lastProvider: string | null = null;
     let lastError: string | null = null;
-    const maxPasses = Math.max(ensured.sections?.length || 1, 1) + 3;
+    const maxPasses = Math.max(ensured.sections?.length || 1, 1) + 4;
 
     for (let pass = 0; pass < maxPasses; pass += 1) {
+      if (preferContinue) {
+        working = seedContinueNavigationAnswers(ensured, working, {
+          rewriteSubmit: true,
+        });
+      }
       working = ensurePathAnswerRows(ensured, working);
       const missing = questionsMissingAnswers(ensured, working);
       if (!missing.length) break;
@@ -327,15 +340,27 @@ export function ApplyWorkspace() {
 
       // Show unlocked section rows immediately while AI drafts them.
       setAnswers(ensurePathAnswerRows(ensured, working));
+      setApplication(ensured);
 
       const fillData = await requestFill(
         ensured,
         missing.map((q) => q.entryId),
-        `Only fill these currently visible section question(s): ${missing
-          .map((q) => q.title)
-          .join("; ")}. Respect the selected path through the form.`,
+        preferContinue
+          ? `Only fill these currently visible section question(s): ${missing
+              .map((q) => q.title)
+              .join(
+                "; ",
+              )}. For Submit form vs Proceed/Continue choices, choose Proceed/Continue so later sections can be completed.`
+          : `Only fill these currently visible section question(s): ${missing
+              .map((q) => q.title)
+              .join("; ")}. Respect the selected path through the form.`,
       );
       working = mergeAnswerLists(working, fillData.answers || []);
+      if (preferContinue) {
+        working = seedContinueNavigationAnswers(ensured, working, {
+          rewriteSubmit: true,
+        });
+      }
       working = ensurePathAnswerRows(ensured, working);
       lastProvider = fillData.provider ?? lastProvider;
       lastError = fillData.geminiError ?? lastError;
@@ -355,6 +380,7 @@ export function ApplyWorkspace() {
       answers: orderAnswersForPath(ensured, working),
       provider: lastProvider,
       geminiError: lastError,
+      application: ensured,
     };
   }
 
@@ -413,9 +439,9 @@ export function ApplyWorkspace() {
       const app = backfillOptionBranches(
         ensureApplicationSections(parseData.application),
       );
-      const filled = await fillAlongPath(app, []);
+      const filled = await fillAlongPath(app, [], { preferContinue: true });
 
-      setApplication(app);
+      setApplication(filled.application ?? app);
       setAnswers(filled.answers);
       setProvider(filled.provider ?? null);
       setGeminiError(filled.geminiError ?? null);
@@ -491,8 +517,11 @@ export function ApplyWorkspace() {
     );
 
     try {
-      const filled = await fillAlongPath(app, withPlaceholders);
+      const filled = await fillAlongPath(app, withPlaceholders, {
+        preferContinue: false,
+      });
       if (gen !== branchFillGen.current) return;
+      setApplication(filled.application ?? app);
       setAnswers(filled.answers);
       setProvider(filled.provider ?? provider);
       setGeminiError(filled.geminiError ?? null);
