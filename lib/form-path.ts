@@ -273,14 +273,37 @@ export function questionsMissingAnswers(
   answers: FilledAnswer[],
 ): FormQuestion[] {
   const path = resolveFormPath(application, answers);
-  const answered = new Set(
-    answers.filter((a) => a.value.trim() || a.manualOnly).map((a) => a.entryId),
-  );
-  return path.questions.filter((q) => !answered.has(q.entryId));
+  const byEntry = new Map(answers.map((answer) => [answer.entryId, answer]));
+  return path.questions.filter((question) => {
+    if (question.manualOnly) return false;
+    const answer = byEntry.get(question.entryId);
+    if (isOptionalQuestion(question)) {
+      // Optional fields may be intentionally blank once drafted.
+      if (!answer || isPendingDraftAnswer(answer)) return true;
+      return false;
+    }
+    return !answer || (!answer.value.trim() && !answer.manualOnly);
+  });
 }
 
 export function isBranchingQuestion(question: FormQuestion): boolean {
   return Boolean(question.optionBranches?.length);
+}
+
+/** True when the form marks the field optional, or the title says so. */
+export function isOptionalQuestion(question: FormQuestion): boolean {
+  if (question.manualOnly) return true;
+  if (question.required === false) return true;
+  return /\boptional\b/i.test(question.title);
+}
+
+/** Pending AI placeholder row (not yet decided, including intentional blanks). */
+export function isPendingDraftAnswer(answer: FilledAnswer): boolean {
+  return (
+    !answer.value.trim() &&
+    !answer.manualOnly &&
+    /drafting from your background/i.test(answer.rationale || "")
+  );
 }
 
 /** True when changing this answer can unlock a different later section. */
@@ -444,9 +467,7 @@ export function isApplyPathReady(
 
   for (const question of path.questions) {
     if (question.manualOnly) continue;
-    // Prefer explicit required flags; if missing, treat as required so we never
-    // submit a blank field the live form would reject.
-    if (question.required === false) continue;
+    if (isOptionalQuestion(question)) continue;
     const answer = byEntry.get(question.entryId);
     if (!answer || !answer.value.trim()) {
       missingRequired.push(question);

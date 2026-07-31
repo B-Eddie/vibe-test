@@ -13,6 +13,7 @@ import {
   ensurePathAnswerRows,
   hasSectionBranching,
   isApplyPathReady,
+  isOptionalQuestion,
   mergeAnswerLists,
   nextSectionAfterAnswer,
   orderAnswersForPath,
@@ -600,6 +601,10 @@ export function ApplyWorkspace() {
       for (const answer of orderAnswersForPath(normalizedApp, answers)) {
         if (answer.manualOnly) continue;
         if (!answer.value.trim()) {
+          const question = normalizedApp.questions.find(
+            (item) => item.entryId === answer.entryId,
+          );
+          if (question && isOptionalQuestion(question)) continue;
           throw new Error(
             `Missing required answer for “${answer.title}”. Finish the unlocked sections first.`,
           );
