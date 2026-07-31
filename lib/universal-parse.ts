@@ -149,6 +149,70 @@ function labelForInput(document: Document, el: Element): string {
   return "Untitled field";
 }
 
+function optionLabelForChoice(document: Document, el: Element): string {
+  const id = el.getAttribute("id");
+  if (id) {
+    const byFor = document.querySelector(`label[for="${cssEscape(id)}"]`);
+    if (byFor?.textContent?.trim()) {
+      return byFor.textContent.trim().replace(/\s+/g, " ");
+    }
+  }
+  const parentLabel = el.closest("label");
+  if (parentLabel) {
+    const clone = parentLabel.cloneNode(true) as Element;
+    for (const input of clone.querySelectorAll("input, select, textarea")) {
+      input.remove();
+    }
+    const text = (clone.textContent || "").trim().replace(/\s+/g, " ");
+    if (text) return text;
+  }
+  const aria = el.getAttribute("aria-label");
+  if (aria?.trim()) return aria.trim();
+  const value = el.getAttribute("value");
+  if (value?.trim()) return value.trim();
+  return "";
+}
+
+function groupTitleForChoice(document: Document, el: Element): string {
+  const fieldset = el.closest("fieldset");
+  if (fieldset) {
+    const legend = fieldset.querySelector(":scope > legend");
+    if (legend?.textContent?.trim()) {
+      return legend.textContent.trim().replace(/\s+/g, " ");
+    }
+  }
+  const radiogroup = el.closest(
+    '[role="radiogroup"], [role="group"], [data-automation-id*="question"]',
+  );
+  if (radiogroup) {
+    const labelledBy = radiogroup.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const texts = labelledBy
+        .split(/\s+/)
+        .map((token) => document.getElementById(token)?.textContent?.trim())
+        .filter(Boolean);
+      if (texts.length) return texts.join(" ");
+    }
+    const aria = radiogroup.getAttribute("aria-label");
+    if (aria?.trim()) return aria.trim();
+    const heading = radiogroup.querySelector(
+      "legend, h1, h2, h3, h4, h5, label, p, span",
+    );
+    if (heading?.textContent?.trim()) {
+      return heading.textContent.trim().replace(/\s+/g, " ").slice(0, 180);
+    }
+  }
+  const wrap = el.closest("div, li, section, tr");
+  if (wrap) {
+    const nearby = wrap.querySelector("legend, h1, h2, h3, h4, label, p");
+    if (nearby && nearby !== el.closest("label")) {
+      const text = (nearby.textContent || "").trim().replace(/\s+/g, " ");
+      if (text && text.length < 180) return text;
+    }
+  }
+  return labelForInput(document, el);
+}
+
 function extractHtmlQuestions(
   html: string,
   pageUrl: string,
@@ -198,7 +262,7 @@ function extractHtmlQuestions(
   ] as Element[];
 
   const questions: FormQuestion[] = [];
-  const seen = new Set<string>();
+  const byEntry = new Map<string, FormQuestion>();
 
   for (const [index, el] of fields.entries()) {
     const typeAttr = (el.getAttribute("type") || "").toLowerCase();
@@ -211,16 +275,58 @@ function extractHtmlQuestions(
 
     const name = el.getAttribute("name") || "";
     const id = el.getAttribute("id") || "";
-    const titleText = labelForInput(document, el);
+    const isChoice = qType === "multiple_choice" || qType === "checkboxes";
     const entryId = name || id || `field-${index}`;
-    if (seen.has(entryId)) continue;
-    seen.add(entryId);
 
+    if (isChoice) {
+      const option = optionLabelForChoice(document, el);
+      const existing = byEntry.get(entryId);
+      if (existing) {
+        if (option && !existing.options.includes(option)) {
+          existing.options.push(option);
+        }
+        if (qType === "checkboxes") existing.type = "checkboxes";
+        continue;
+      }
+
+      const groupTitle = groupTitleForChoice(document, el);
+      const selector = name
+        ? `input[name="${name.replace(/"/g, '\\"')}"]`
+        : id
+          ? `#${cssEscape(id)}`
+          : undefined;
+
+      const question: FormQuestion = {
+        id: entryId,
+        entryId,
+        title: groupTitle.slice(0, 180),
+        type: qType,
+        required:
+          el.hasAttribute("required") ||
+          el.getAttribute("aria-required") === "true",
+        options: option ? [option] : [],
+        manualOnly: false,
+        name: name || undefined,
+        selector,
+        matchHints: [groupTitle, name, id, option]
+          .map((item) => item.trim())
+          .filter(Boolean),
+      };
+      byEntry.set(entryId, question);
+      questions.push(question);
+      continue;
+    }
+
+    if (byEntry.has(entryId)) continue;
+
+    const titleText = labelForInput(document, el);
     const options: string[] = [];
     if (el.tagName.toLowerCase() === "select") {
       for (const opt of el.querySelectorAll("option")) {
         const value = (opt.textContent || "").trim();
-        if (value) options.push(value);
+        if (value && !/^select(\s|$)/i.test(value) && value !== "—") {
+          options.push(value);
+        }
       }
     }
 
@@ -230,11 +336,11 @@ function extractHtmlQuestions(
         ? `[name="${name.replace(/"/g, '\\"')}"]`
         : undefined;
 
-    questions.push({
+    const question: FormQuestion = {
       id: entryId,
       entryId,
       title: titleText.slice(0, 180),
-      type: qType,
+      type: qType === "dropdown" ? "dropdown" : qType,
       required:
         el.hasAttribute("required") ||
         el.getAttribute("aria-required") === "true",
@@ -245,7 +351,9 @@ function extractHtmlQuestions(
       matchHints: [titleText, name, id, el.getAttribute("placeholder") || ""]
         .map((item) => item.trim())
         .filter(Boolean),
-    });
+    };
+    byEntry.set(entryId, question);
+    questions.push(question);
   }
 
   return { questions, formAction, title, text };
@@ -292,7 +400,7 @@ async function aiExtractQuestions(
     // Never combine JSON mime type with google_search — unsupported by Gemini.
     search: false,
     system:
-      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff. If page text is thin, infer likely fields for that URL/platform.",
+      "Extract every applicant-facing field/question from an application page. Return ONLY a JSON array of objects: {id, title, type, required, options, matchHints}. type one of short|paragraph|multiple_choice|dropdown|checkboxes|scale|date|time|file|email. For radios/multiple_choice/dropdown/checkboxes ALWAYS include the visible option labels in options[]. matchHints: 2-5 strings that might appear as labels/placeholders/names on the live page. Include essay prompts and yes/no questions. Skip navigation/footer fluff. If page text is thin, infer likely fields for that URL/platform.",
     user: JSON.stringify({
       url: pageUrl,
       platform,

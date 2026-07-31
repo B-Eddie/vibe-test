@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  answersToFillPayload,
+  answersToFillPayloadWithOptions,
   buildBookmarklet,
   buildConsoleScript,
 } from "@/lib/fill-script";
@@ -16,6 +16,7 @@ import {
 import {
   EMPTY_PROFILE,
   type FilledAnswer,
+  type FormQuestion,
   type ParsedApplication,
   type StudentProfile,
 } from "@/lib/types";
@@ -28,6 +29,113 @@ function targetIdFor(url: string): string {
     hash = (hash * 31 + url.charCodeAt(i)) >>> 0;
   }
   return `app-${hash.toString(16)}`;
+}
+
+function AnswerEditor({
+  answer,
+  question,
+  onChange,
+}: {
+  answer: FilledAnswer;
+  question?: FormQuestion;
+  onChange: (value: string) => void;
+}) {
+  const type = question?.type || answer.type;
+  const options = question?.options?.length
+    ? question.options
+    : answer.value
+      ? [answer.value]
+      : [];
+
+  if (answer.manualOnly || type === "file") {
+    return (
+      <p className="empty-state">
+        Upload this on the live page after autofill.
+      </p>
+    );
+  }
+
+  if ((type === "dropdown" || type === "scale") && options.length) {
+    return (
+      <select
+        value={options.includes(answer.value) ? answer.value : ""}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="" disabled>
+          Select an option
+        </option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (type === "multiple_choice" && options.length) {
+    return (
+      <div className="answer-choice-list" role="radiogroup">
+        {options.map((option) => (
+          <label key={option} className="answer-choice">
+            <input
+              type="radio"
+              name={`answer-${answer.entryId}`}
+              checked={answer.value === option}
+              onChange={() => onChange(option)}
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "checkboxes" && options.length) {
+    const selected = new Set(
+      answer.value
+        .split("||")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    );
+    return (
+      <div className="answer-choice-list">
+        {options.map((option) => (
+          <label key={option} className="answer-choice">
+            <input
+              type="checkbox"
+              checked={selected.has(option)}
+              onChange={(e) => {
+                const next = new Set(selected);
+                if (e.target.checked) next.add(option);
+                else next.delete(option);
+                onChange([...next].join("||"));
+              }}
+            />
+            <span>{option}</span>
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "paragraph") {
+    return (
+      <textarea
+        rows={5}
+        value={answer.value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+
+  return (
+    <input
+      value={answer.value}
+      onChange={(e) => onChange(e.target.value)}
+      type={type === "email" ? "email" : type === "date" ? "date" : "text"}
+    />
+  );
 }
 
 export function ApplyWorkspace() {
@@ -53,8 +161,17 @@ export function ApplyWorkspace() {
   const fromId = searchParams.get("from") || "";
 
   const completeness = useMemo(() => profileCompleteness(profile), [profile]);
-  const fillPayload = useMemo(() => answersToFillPayload(answers), [answers]);
-  const bookmarklet = useMemo(
+  const optionMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const question of application?.questions || []) {
+      if (question.options?.length) map[question.entryId] = question.options;
+    }
+    return map;
+  }, [application]);
+  const fillPayload = useMemo(
+    () => answersToFillPayloadWithOptions(answers, optionMap),
+    [answers, optionMap],
+  );  const bookmarklet = useMemo(
     () => buildBookmarklet(fillPayload),
     [fillPayload],
   );
@@ -405,39 +522,38 @@ export function ApplyWorkspace() {
             )}
 
             <div className="answer-list">
-              {answers.map((answer) => (
-                <label key={answer.entryId} className="answer-card">
-                  <div className="answer-card-head">
-                    <strong>{answer.title}</strong>
-                    <span className={`confidence ${answer.confidence}`}>
-                      {answer.manualOnly ? "manual" : answer.confidence}
-                    </span>
+              {answers.map((answer) => {
+                const question = application.questions.find(
+                  (item) => item.entryId === answer.entryId,
+                );
+                return (
+                  <div key={answer.entryId} className="answer-card">
+                    <div className="answer-card-head">
+                      <strong>{answer.title}</strong>
+                      <span className={`confidence ${answer.confidence}`}>
+                        {answer.manualOnly
+                          ? "manual"
+                          : question?.type &&
+                              [
+                                "multiple_choice",
+                                "dropdown",
+                                "checkboxes",
+                                "scale",
+                              ].includes(question.type)
+                            ? `${answer.confidence} · ${question.type.replace("_", " ")}`
+                            : answer.confidence}
+                      </span>
+                    </div>
+                    <p className="rationale">{answer.rationale}</p>
+                    <AnswerEditor
+                      answer={answer}
+                      question={question}
+                      onChange={(value) => updateAnswer(answer.entryId, value)}
+                    />
                   </div>
-                  <p className="rationale">{answer.rationale}</p>
-                  {answer.manualOnly ? (
-                    <p className="empty-state">
-                      Upload this on the live page after autofill.
-                    </p>
-                  ) : answer.type === "paragraph" ? (
-                    <textarea
-                      rows={5}
-                      value={answer.value}
-                      onChange={(e) =>
-                        updateAnswer(answer.entryId, e.target.value)
-                      }
-                    />
-                  ) : (
-                    <input
-                      value={answer.value}
-                      onChange={(e) =>
-                        updateAnswer(answer.entryId, e.target.value)
-                      }
-                    />
-                  )}
-                </label>
-              ))}
+                );
+              })}
             </div>
-
             {isGoogle ? (
               <>
                 <label className="checkbox-label confirm-row">
@@ -500,8 +616,8 @@ export function ApplyWorkspace() {
             <h3>Autofill the live page</h3>
             <p className="provider-note">
               The application tab should be open and the fill script is on your
-              clipboard. This works on basically any platform because it runs
-              inside that page.
+              clipboard. It sets text fields, dropdowns, radios, and checkboxes
+              on the live page.
             </p>
 
             <ol className="fill-instructions">
