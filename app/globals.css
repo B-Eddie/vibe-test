@@ -828,10 +828,35 @@ textarea {
   gap: 0.85rem;
 }
 
-.answer-card {
-  padding: 0.9rem 1rem;
+.answer-choice-list {
   display: grid;
   gap: 0.45rem;
+}
+
+.answer-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.answer-choice:has(input:checked) {
+  border-color: var(--harbor);
+  background: rgba(13, 115, 112, 0.08);
+}
+
+.answer-choice input {
+  width: auto;
+  margin-top: 0.15rem;
+}
+
+.answer-card select {
+  width: 100%;
 }
 
 .answer-card-head {
