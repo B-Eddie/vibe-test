@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
   const content = await geminiText({
     json: true,
     system:
-      "You help a high school student draft internship application materials. Reply with ONLY valid JSON with keys coverEmail and whyMe. Keep tone sincere, specific, and concise. Never invent awards or experience not present in the profile. Do not submit anything; drafting only.",
+      "You help a high school student draft internship application materials. Reply with ONLY valid JSON with keys coverEmail and whyMe. Always return non-empty drafts. Prefer profile facts; when details are missing, write a sincere editable draft grounded in grade/school/interests/skills and the opportunity. Do not invent specific awards, GPAs, or employers not in the profile. Do not submit anything; drafting only.",
     user: JSON.stringify({
       profile: body.profile,
       internship: {

@@ -80,7 +80,7 @@ async function callGeminiModel(
       },
     ],
     generationConfig: {
-      temperature: 0.3,
+      temperature: options.json ? 0.55 : 0.3,
       maxOutputTokens: 8192,
       ...(useJson ? { responseMimeType: "application/json" } : {}),
     },

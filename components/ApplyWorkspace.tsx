@@ -372,7 +372,11 @@ export function ApplyWorkspace() {
                 {geminiError ? (
                   <p className="error-note" style={{ marginTop: "0.75rem" }}>
                     Gemini did not fill this form ({geminiError}). Showing
+<<<<<<< HEAD
                     local fallback answers — edit before submitting.
+=======
+                    local draft answers — edit before submitting.
+>>>>>>> origin/cursor/always-draft-fill-0c80
                     {/not set|API key|UNAUTHENTICATED|PERMISSION/i.test(
                       geminiError,
                     )
@@ -399,7 +403,7 @@ export function ApplyWorkspace() {
                   ? `${manualCount} file upload(s) stay manual. `
                   : ""}
                 {lowConfidence > 0
-                  ? `${lowConfidence} answer(s) are low-confidence — edit them before filling.`
+                  ? `${lowConfidence} answer(s) are best-effort drafts (low confidence) — edit them before filling.`
                   : ""}
               </p>
             )}
