@@ -23,58 +23,22 @@ export default function HomePage() {
         <div className="shell hero-copy">
           <p className="hero-brand">InternHarbor</p>
           <h1>Find it. Fill it. Send it.</h1>
-          <p className="hero-lead">
-            Discover HS-friendly programs, then apply from one desk using your
-            saved background.
-          </p>
+          <p className="hero-lead">HS internships, one apply desk.</p>
           <div className="hero-cta">
             <Link className="btn-primary" href="/apply">
-              Apply to a link
+              Apply
             </Link>
             <Link className="btn-secondary" href="/internships">
-              Find opportunities
+              Browse
             </Link>
           </div>
-        </div>
-      </section>
-
-      <section className="flow-section">
-        <div className="shell">
-          <div className="section-heading">
-            <h2>Three steps, one desk</h2>
-            <p>
-              Built like a personal apply cockpit — save your background once,
-              then reuse it on any form or posting.
-            </p>
-          </div>
-          <ol className="flow-rail">
-            <li>
-              <span className="flow-index">01</span>
-              <strong>Find</strong>
-              <p>Browse curated programs or paste any application URL.</p>
-            </li>
-            <li>
-              <span className="flow-index">02</span>
-              <strong>Fill</strong>
-              <p>Gemini drafts answers from your stored background.</p>
-            </li>
-            <li>
-              <span className="flow-index">03</span>
-              <strong>Send</strong>
-              <p>Review, then submit Google Forms or autofill the live page.</p>
-            </li>
-          </ol>
         </div>
       </section>
 
       <section className="home-matches">
         <div className="shell">
           <div className="section-heading">
-            <h2>Today&apos;s top matches</h2>
-            <p>
-              Ranked from your background. Hit Apply to draft and send from your
-              profile.
-            </p>
+            <h2>Matches</h2>
           </div>
           <InternshipBrowser
             initialListings={listings}

@@ -7,11 +7,7 @@ export default function InternshipsPage() {
   return (
     <main>
       <header className="page-header">
-        <h1>Find opportunities</h1>
-        <p>
-          Curated high school programs plus on-demand AI search. Listings with
-          passed deadlines are filtered out automatically.
-        </p>
+        <h1>Find</h1>
       </header>
       <InternshipBrowser initialListings={listings} />
     </main>

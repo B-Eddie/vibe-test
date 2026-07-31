@@ -49,9 +49,8 @@ body {
   font-family: var(--font-body), "Segoe UI", sans-serif;
   background: var(--paper);
   background-image:
-    radial-gradient(900px 480px at 0% -10%, rgba(13, 115, 112, 0.12), transparent 55%),
-    radial-gradient(700px 420px at 100% 0%, rgba(200, 241, 53, 0.16), transparent 50%),
-    linear-gradient(180deg, #f7f9f4 0%, var(--paper) 38%, #eef2ea 100%);
+    radial-gradient(720px 360px at 0% -8%, rgba(13, 115, 112, 0.07), transparent 55%),
+    linear-gradient(180deg, #f7f8f5 0%, var(--paper) 42%, #f1f3ee 100%);
   background-attachment: fixed;
 }
 
@@ -208,7 +207,7 @@ textarea {
   width: min(1120px, calc(100% - 2.5rem));
   padding: 8.5rem 0 4.5rem;
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .hero-brand {
@@ -238,10 +237,10 @@ textarea {
 
 .hero-lead {
   margin: 0;
-  max-width: 32rem;
-  color: rgba(244, 247, 242, 0.78);
-  font-size: 1.05rem;
-  line-height: 1.55;
+  max-width: 24rem;
+  color: rgba(244, 247, 242, 0.72);
+  font-size: 1rem;
+  line-height: 1.4;
   animation: rise 1s ease 0.12s both;
 }
 
@@ -343,7 +342,7 @@ main:not(:has(.hero)) .btn-secondary:hover,
 .page-header {
   width: min(1120px, calc(100% - 2.5rem));
   margin: 0 auto;
-  padding: 2.75rem 0 1.4rem;
+  padding: 2.25rem 0 1rem;
   animation: rise 0.55s ease both;
 }
 
@@ -351,96 +350,38 @@ main:not(:has(.hero)) .btn-secondary:hover,
 .section-heading h2 {
   font-family: var(--font-display), sans-serif;
   letter-spacing: -0.04em;
-  margin: 0 0 0.45rem;
-  font-size: clamp(1.85rem, 3.5vw, 2.6rem);
+  margin: 0;
+  font-size: clamp(1.75rem, 3.2vw, 2.35rem);
   line-height: 1.05;
 }
 
 .page-header p,
 .section-heading p {
-  margin: 0;
+  margin: 0.4rem 0 0;
   color: var(--ink-soft);
-  max-width: 38rem;
-  line-height: 1.55;
+  max-width: 28rem;
+  line-height: 1.45;
+  font-size: 0.95rem;
 }
 
 main > .shell,
-.home-matches > .shell,
-.flow-section > .shell {
-  padding-bottom: 3.5rem;
+.home-matches > .shell {
+  padding-bottom: 3rem;
 }
 
 main:has(> .page-header) > :not(.page-header) {
   width: min(1120px, calc(100% - 2.5rem));
   margin-left: auto;
   margin-right: auto;
-  padding-bottom: 3.5rem;
-}
-
-/* ——— Flow section ——— */
-
-.flow-section {
-  padding: 4rem 0 2.5rem;
-  background:
-    linear-gradient(180deg, rgba(232, 236, 227, 0.65), rgba(244, 246, 241, 0));
-}
-
-.flow-section .section-heading {
-  margin-bottom: 1.75rem;
-  animation: rise 0.55s ease both;
-}
-
-.flow-rail {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.25rem;
-}
-
-.flow-rail li {
-  display: grid;
-  gap: 0.45rem;
-  padding: 0.25rem 0;
-  border-top: 2px solid var(--ink);
-  animation: rise 0.6s ease both;
-}
-
-.flow-rail li:nth-child(2) {
-  animation-delay: 0.06s;
-}
-
-.flow-rail li:nth-child(3) {
-  animation-delay: 0.12s;
-}
-
-.flow-index {
-  font-family: var(--font-display), sans-serif;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  color: var(--harbor);
-  font-weight: 700;
-}
-
-.flow-rail strong {
-  font-family: var(--font-display), sans-serif;
-  font-size: 1.35rem;
-  letter-spacing: -0.03em;
-}
-
-.flow-rail p {
-  margin: 0;
-  color: var(--ink-soft);
-  line-height: 1.5;
+  padding-bottom: 3rem;
 }
 
 .home-matches {
-  padding: 1rem 0 1rem;
+  padding: 3rem 0 1rem;
 }
 
 .home-matches .section-heading {
-  margin-bottom: 1.15rem;
+  margin-bottom: 1rem;
 }
 
 /* ——— Forms & filters ——— */
@@ -548,7 +489,7 @@ textarea {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 1.1rem;
-  padding: 1.2rem 0;
+  padding: 1rem 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
   transition: background 0.2s ease;
@@ -599,6 +540,14 @@ textarea {
 .error-note,
 .empty-state {
   color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.provider-note,
+.error-note,
+.empty-state {
+  margin: 0;
+  line-height: 1.4;
 }
 
 .desc-line {
@@ -762,29 +711,31 @@ textarea {
 .apply-panel,
 .apply-meta-card,
 .answer-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
 }
 
 .apply-panel {
-  padding: 1.25rem;
+  padding: 0;
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
 }
 
 .apply-header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  align-items: start;
+  align-items: center;
 }
 
 .apply-header h2,
 .apply-meta-card h3,
 .apply-done-stage h3,
 .apply-fill-stage h3 {
-  margin: 0 0 0.35rem;
+  margin: 0;
   font-family: var(--font-display), sans-serif;
   letter-spacing: -0.03em;
 }
@@ -793,6 +744,7 @@ textarea {
 .apply-meta-card p {
   margin: 0;
   color: var(--ink-soft);
+  font-size: 0.9rem;
 }
 
 .opportunity-chip {
@@ -816,16 +768,29 @@ textarea {
 }
 
 .apply-meta-card {
-  padding: 1rem;
+  padding: 0 0 1rem;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   align-items: start;
+  border-bottom: 1px solid var(--line);
 }
 
 .answer-list {
   display: grid;
-  gap: 0.85rem;
+  gap: 0;
+}
+
+.answer-card {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.65rem;
+  border-radius: 0;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
 }
 
 .answer-choice-list {
@@ -1108,15 +1073,15 @@ textarea {
 .site-footer {
   margin-top: auto;
   border-top: 1px solid var(--line);
-  background: rgba(232, 236, 227, 0.55);
+  background: transparent;
 }
 
 .site-footer-inner {
   display: flex;
   justify-content: space-between;
   gap: 1.25rem;
-  align-items: end;
-  padding: 2rem 0;
+  align-items: center;
+  padding: 1.5rem 0;
 }
 
 .footer-brand {

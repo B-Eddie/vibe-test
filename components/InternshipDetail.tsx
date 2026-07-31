@@ -39,9 +39,7 @@ export function InternshipDetail({
   if (!internship || !match) {
     return (
       <section className="detail-panel">
-        <p className="empty-state">
-          Listing not found. Go back to Find and open it again from the feed.
-        </p>
+        <p className="empty-state">Listing not found.</p>
       </section>
     );
   }
@@ -52,9 +50,8 @@ export function InternshipDetail({
     <div className="detail-layout">
       <section className="detail-panel">
         <div className="internship-meta">
-          <span className="score-chip">{match.score}% match</span>
-          <span>{internship.remote ? "Remote OK" : "On-site"}</span>
-          <span>{internship.source}</span>
+          <span className="score-chip">{match.score}%</span>
+          <span>{internship.remote ? "Remote" : "On-site"}</span>
         </div>
         <h1 style={{ margin: 0, fontFamily: "var(--font-display)" }}>
           {internship.title}
@@ -62,17 +59,12 @@ export function InternshipDetail({
         <p className="org-line">
           {internship.org} · {internship.location}
         </p>
-        <p>{internship.description}</p>
+        <p className="desc-line">{internship.description}</p>
         <div className="tag-row">
           {internship.tags.map((tag) => (
             <span key={tag}>{tag}</span>
           ))}
         </div>
-        <ul className="reason-list">
-          {match.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
-        </ul>
         <div className="draft-actions">
           <button
             type="button"
@@ -88,7 +80,7 @@ export function InternshipDetail({
             Save
           </button>
           <Link className="btn-primary" href={applyHref}>
-            Apply with InternHarbor
+            Apply
           </Link>
           <a
             className="btn-ghost"
@@ -96,7 +88,7 @@ export function InternshipDetail({
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open listing
+            Open
           </a>
         </div>
       </section>

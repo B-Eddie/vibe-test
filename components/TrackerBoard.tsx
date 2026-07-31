@@ -57,10 +57,7 @@ export function TrackerBoard({ listings }: { listings: Internship[] }) {
                   <li key={entry.internshipId} className="tracker-item">
                     <Link href={href}>{title}</Link>
                     <p>
-                      {internship?.org ||
-                        entry.kind ||
-                        "Application"}
-                      {entry.notes ? ` · ${entry.notes}` : ""}
+                      {internship?.org || entry.kind || "Application"}
                     </p>
                     <div className="tracker-move">
                       {COLUMNS.filter((column) => column !== status).map(

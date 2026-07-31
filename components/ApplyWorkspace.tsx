@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   answersToFillPayloadWithOptions,
-  buildBookmarklet,
   buildConsoleScript,
 } from "@/lib/fill-script";
 import {
@@ -177,7 +176,6 @@ export function ApplyWorkspace() {
   const [answers, setAnswers] = useState<FilledAnswer[]>([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [geminiError, setGeminiError] = useState<string | null>(null);
-  const [geminiModel, setGeminiModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionLoadingLabel, setSectionLoadingLabel] = useState(
@@ -225,10 +223,6 @@ export function ApplyWorkspace() {
   const fillPayload = useMemo(
     () => answersToFillPayloadWithOptions(visibleAnswers, optionMap),
     [visibleAnswers, optionMap],
-  );
-  const bookmarklet = useMemo(
-    () => buildBookmarklet(fillPayload),
-    [fillPayload],
   );
   const consoleScript = useMemo(
     () => buildConsoleScript(fillPayload),
@@ -302,7 +296,6 @@ export function ApplyWorkspace() {
     let working = ensurePathAnswerRows(ensured, seedAnswers);
     let lastProvider: string | null = null;
     let lastError: string | null = null;
-    let lastModel: string | null = null;
     const maxPasses = Math.max(ensured.sections?.length || 1, 1) + 3;
 
     for (let pass = 0; pass < maxPasses; pass += 1) {
@@ -346,7 +339,6 @@ export function ApplyWorkspace() {
       working = ensurePathAnswerRows(ensured, working);
       lastProvider = fillData.provider ?? lastProvider;
       lastError = fillData.geminiError ?? lastError;
-      lastModel = fillData.geminiModel ?? lastModel;
 
       // If the API returned nothing useful, stop looping to avoid an infinite spin.
       const stillMissing = questionsMissingAnswers(ensured, working);
@@ -363,7 +355,6 @@ export function ApplyWorkspace() {
       answers: orderAnswersForPath(ensured, working),
       provider: lastProvider,
       geminiError: lastError,
-      geminiModel: lastModel,
     };
   }
 
@@ -428,7 +419,6 @@ export function ApplyWorkspace() {
       setAnswers(filled.answers);
       setProvider(filled.provider ?? null);
       setGeminiError(filled.geminiError ?? null);
-      setGeminiModel(filled.geminiModel ?? null);
       setStep("review");
 
       const id = fromId || targetIdFor(app.url);
@@ -506,7 +496,6 @@ export function ApplyWorkspace() {
       setAnswers(filled.answers);
       setProvider(filled.provider ?? provider);
       setGeminiError(filled.geminiError ?? null);
-      setGeminiModel(filled.geminiModel ?? null);
       const readiness = isApplyPathReady(app, filled.answers, { loading: false });
       setStatusNote(
         readiness.ready
@@ -636,16 +625,11 @@ export function ApplyWorkspace() {
       kind: application.kind,
       notes: "Autofilled on live page",
     });
-    setStatusNote(
-      "Marked applied. Double-check the live page for file uploads or CAPTCHA before you hit their submit button.",
-    );
+    setStatusNote("Marked applied.");
     setStep("done");
   }
 
   const manualCount = visibleAnswers.filter((answer) => answer.manualOnly).length;
-  const lowConfidence = visibleAnswers.filter(
-    (answer) => answer.confidence === "low" && !answer.manualOnly,
-  ).length;
   const isGoogle = application?.kind === "google-form";
 
   return (
@@ -683,13 +667,7 @@ export function ApplyWorkspace() {
       <section className="apply-panel">
         <div className="apply-header">
           <div>
-            <h2>Apply desk</h2>
-            <p>
-              Paste any application link — Google Forms, Greenhouse, Lever,
-              Workday, Typeform, school portals, and more. InternHarbor reads
-              the page, drafts answers from your background, then autofills the
-              live form.
-            </p>
+            <h2>Desk</h2>
           </div>
           <Link className="btn-ghost" href="/profile">
             Background {completeness}%
@@ -697,17 +675,17 @@ export function ApplyWorkspace() {
         </div>
 
         {opportunityTitle ? (
-          <p className="opportunity-chip">Applying to: {opportunityTitle}</p>
+          <p className="opportunity-chip">{opportunityTitle}</p>
         ) : null}
 
         {step === "link" ? (
           <div className="apply-link-stage">
             <label>
-              Application URL
+              Link
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://… any application or form link"
+                placeholder="https://…"
               />
             </label>
             <div className="form-actions">
@@ -717,14 +695,14 @@ export function ApplyWorkspace() {
                 disabled={loading}
                 onClick={() => prepareApplication()}
               >
-                {loading ? "Reading page & drafting…" : "Prepare application"}
+                {loading ? "Drafting…" : "Prepare"}
               </button>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => router.push("/internships")}
               >
-                Find opportunities
+                Browse
               </button>
             </div>
           </div>
@@ -735,43 +713,19 @@ export function ApplyWorkspace() {
             <div className="apply-meta-card">
               <div>
                 <h3>{application.title}</h3>
-                <p>{application.description || application.url}</p>
                 <div className="tag-row">
                   <span>{application.platform}</span>
                   <span>
-                    {visibleAnswers.length} visible field
+                    {visibleAnswers.length} field
                     {visibleAnswers.length === 1 ? "" : "s"}
                   </span>
                   {branching ? (
-                    <span>
-                      {formPath.sectionIndexes.length} section
-                      {formPath.sectionIndexes.length === 1 ? "" : "s"} on path
-                    </span>
+                    <span>{formPath.sectionIndexes.length} sections</span>
                   ) : null}
-                  <span>
-                    {isGoogle ? "Direct submit available" : "Live-page autofill"}
-                  </span>
-                  {provider ? <span>{provider}</span> : null}
-                  {geminiModel ? <span>{geminiModel}</span> : null}
                 </div>
-                {branching ? (
-                  <p className="provider-note" style={{ marginTop: "0.75rem" }}>
-                    This form has multiple sections. Only the path unlocked by
-                    your current choices is shown. Changing a branching option
-                    redrafts the next section.
-                  </p>
-                ) : null}
                 {geminiError ? (
                   <p className="error-note" style={{ marginTop: "0.75rem" }}>
-                    Gemini did not fill this form ({geminiError}). Showing
-                    local draft answers — edit before submitting.
-                    {/not set|API key|UNAUTHENTICATED|PERMISSION/i.test(
-                      geminiError,
-                    )
-                      ? " Confirm GEMINI_API_KEY is set for Production on Vercel, then redeploy."
-                      : /quota|rate.?limit|exceeded|billing/i.test(geminiError)
-                        ? " Try again shortly, or check your Gemini plan/billing and model quota."
-                        : ""}
+                    Draft fallback ({geminiError}).
                   </p>
                 ) : null}
               </div>
@@ -781,20 +735,15 @@ export function ApplyWorkspace() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open original
+                Open
               </a>
             </div>
 
-            {(manualCount > 0 || lowConfidence > 0) && (
+            {manualCount > 0 ? (
               <p className="provider-note">
-                {manualCount > 0
-                  ? `${manualCount} file upload(s) stay manual. `
-                  : ""}
-                {lowConfidence > 0
-                  ? `${lowConfidence} answer(s) are best-effort drafts (low confidence) — edit them before filling.`
-                  : ""}
+                {manualCount} upload{manualCount === 1 ? "" : "s"} stay manual.
               </p>
-            )}
+            ) : null}
 
             <div className="answer-list">
               {formPath.sectionIndexes.map((sectionIndex) => {
@@ -839,19 +788,10 @@ export function ApplyWorkspace() {
                                 {answer.manualOnly
                                   ? "manual"
                                   : canChangeFormPath(normalizedApp, question)
-                                    ? `${answer.confidence} · branching`
-                                    : question?.type &&
-                                        [
-                                          "multiple_choice",
-                                          "dropdown",
-                                          "checkboxes",
-                                          "scale",
-                                        ].includes(question.type)
-                                      ? `${answer.confidence} · ${question.type.replace("_", " ")}`
-                                      : answer.confidence}
+                                    ? "branch"
+                                    : answer.confidence}
                               </span>
                             </div>
-                            <p className="rationale">{answer.rationale}</p>
                             <AnswerEditor
                               answer={answer}
                               question={question}
@@ -876,10 +816,6 @@ export function ApplyWorkspace() {
                               />
                               <div>
                                 <p>{sectionLoadingLabel}</p>
-                                <span>
-                                  New section questions will appear below when
-                                  ready.
-                                </span>
                               </div>
                             </div>
                           ) : null}
@@ -891,7 +827,6 @@ export function ApplyWorkspace() {
                         <div className="section-loading-spinner" aria-hidden />
                         <div>
                           <p>{sectionLoadingLabel}</p>
-                          <span>Preparing AI drafts for this section…</span>
                         </div>
                       </div>
                     ) : null}
@@ -914,7 +849,6 @@ export function ApplyWorkspace() {
                     <div className="section-loading-spinner" aria-hidden />
                     <div>
                       <p>{sectionLoadingLabel}</p>
-                      <span>Preparing AI drafts for this section…</span>
                     </div>
                   </div>
                 </div>
@@ -939,8 +873,7 @@ export function ApplyWorkspace() {
                     disabled={!pathReadiness.ready || sectionLoading}
                     onChange={(e) => setConfirmed(e.target.checked)}
                   />
-                  I’ve reviewed every answer on this path and want InternHarbor
-                  to submit this Google Form now.
+                  I’ve reviewed these answers.
                 </label>
                 <div className="form-actions">
                   <button
@@ -956,7 +889,7 @@ export function ApplyWorkspace() {
                     disabled={!pathReadiness.ready || sectionLoading}
                     onClick={launchPageFill}
                   >
-                    Autofill in browser instead
+                    Autofill
                   </button>
                   <button
                     type="button"
@@ -967,10 +900,10 @@ export function ApplyWorkspace() {
                     onClick={submitGoogle}
                   >
                     {sectionLoading
-                      ? "Drafting section…"
+                      ? "Drafting…"
                       : submitting
                         ? "Submitting…"
-                        : "Submit Google Form"}
+                        : "Submit"}
                   </button>
                 </div>
               </>
@@ -989,9 +922,7 @@ export function ApplyWorkspace() {
                   disabled={!pathReadiness.ready || sectionLoading}
                   onClick={launchPageFill}
                 >
-                  {sectionLoading
-                    ? "Drafting section…"
-                    : "Autofill on live page"}
+                  {sectionLoading ? "Drafting…" : "Autofill"}
                 </button>
               </div>
             )}
@@ -1000,34 +931,23 @@ export function ApplyWorkspace() {
 
         {step === "fill" && application ? (
           <div className="apply-fill-stage">
-            <h3>Autofill the live page</h3>
-            <p className="provider-note">
-              The application tab should be open and the fill script is on your
-              clipboard. It sets text fields, dropdowns, radios, and checkboxes
-              on the live page.
-            </p>
-
+            <h3>Autofill</h3>
             <ol className="fill-instructions">
               <li>
-                Switch to the <strong>{application.platform}</strong> tab (
+                Open the{" "}
                 <a
                   href={application.url}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  reopen
-                </a>
-                ).
+                  {application.platform}
+                </a>{" "}
+                tab
               </li>
               <li>
-                Press <kbd>F12</kbd> or <kbd>Cmd/Ctrl + Option + J</kbd> to open
-                the console.
+                Console (<kbd>F12</kbd>) → paste → Enter
               </li>
-              <li>
-                Paste (<kbd>Cmd/Ctrl + V</kbd>) and press <kbd>Enter</kbd>.
-                Fields highlight in teal as they’re filled.
-              </li>
-              <li>Review, handle file uploads / CAPTCHA, then submit there.</li>
+              <li>Review and submit there</li>
             </ol>
 
             <div className="form-actions">
@@ -1036,48 +956,34 @@ export function ApplyWorkspace() {
                 className="btn-secondary"
                 onClick={copyFillScript}
               >
-                {scriptCopied ? "Script copied" : "Copy fill script again"}
+                {scriptCopied ? "Copied" : "Copy script"}
               </button>
-              <a className="btn-secondary" href={bookmarklet}>
-                Autofill bookmarklet
-              </a>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={markApplied}
               >
-                I submitted — mark applied
+                Mark applied
               </button>
             </div>
-
-            <details className="fill-advanced">
-              <summary>Keep a reusable bookmarklet</summary>
-              <p>
-                Drag this link to your bookmarks bar, open any application page,
-                then click the bookmark after preparing answers here.
-              </p>
-              <a className="bookmarklet-link" href={bookmarklet}>
-                InternHarbor Autofill
-              </a>
-            </details>
 
             <button
               type="button"
               className="btn-ghost"
               onClick={() => setStep("review")}
             >
-              ← Back to answers
+              ← Answers
             </button>
           </div>
         ) : null}
 
         {step === "done" ? (
           <div className="apply-done-stage">
-            <h3>You’re set</h3>
-            <p>{statusNote}</p>
+            <h3>Done</h3>
+            {statusNote ? <p>{statusNote}</p> : null}
             <div className="form-actions">
               <Link className="btn-primary" href="/tracker">
-                View tracker
+                Tracker
               </Link>
               <button
                 type="button"
@@ -1089,11 +995,10 @@ export function ApplyWorkspace() {
                   setConfirmed(false);
                   setStatusNote(null);
                   setGeminiError(null);
-                  setGeminiModel(null);
                   setProvider(null);
                 }}
               >
-                Apply to another
+                Another
               </button>
             </div>
           </div>
