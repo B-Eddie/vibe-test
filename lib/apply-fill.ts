@@ -38,7 +38,7 @@ function isFakePlaceholderValue(value: string): boolean {
   );
 }
 
-function blankOptionalAnswer(_question?: FormQuestion): {
+function blankOptionalAnswer(): {
   value: string;
   confidence: FilledAnswer["confidence"];
   rationale: string;
@@ -291,7 +291,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From your email";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = "";
         confidence = "low";
@@ -303,7 +303,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From your phone";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = "";
         confidence = "low";
@@ -335,7 +335,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From your name";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = "";
         confidence = "low";
@@ -347,7 +347,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From your school";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = draftNarrative(profile, question, opportunity);
         confidence = "low";
@@ -362,7 +362,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From your grade";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = draftNarrative(profile, question, opportunity);
         confidence = "low";
@@ -374,7 +374,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From your city";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = draftNarrative(profile, question, opportunity);
         confidence = "low";
@@ -386,7 +386,7 @@ function heuristicFill(
         confidence = "medium";
         rationale = "From parent/guardian fields";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = "";
         confidence = "low";
@@ -398,7 +398,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From skills";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = draftNarrative(profile, question, opportunity);
         confidence = "low";
@@ -426,7 +426,7 @@ function heuristicFill(
           confidence = coerced.confidence;
           rationale = "Best-fit option from your background";
         } else {
-          ({ value, confidence, rationale } = blankOptionalAnswer(question));
+          ({ value, confidence, rationale } = blankOptionalAnswer());
         }
       } else {
         const drafted = draftNarrative(profile, question, opportunity);
@@ -442,7 +442,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From a custom background fact";
       } else if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
         value = draftNarrative(profile, question, opportunity);
         confidence = firstNonEmpty(profile.bio, profile.activities, profile.resumeText)
@@ -471,7 +471,7 @@ function heuristicFill(
 
     if (!value.trim()) {
       if (optional) {
-        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        ({ value, confidence, rationale } = blankOptionalAnswer());
       } else if (
         question.type === "multiple_choice" ||
         question.type === "dropdown" ||
@@ -492,7 +492,7 @@ function heuristicFill(
     }
 
     if (optional && isFakePlaceholderValue(value)) {
-      ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      ({ value, confidence, rationale } = blankOptionalAnswer());
     }
 
     return {
