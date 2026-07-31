@@ -33,6 +33,8 @@ export type StudentProfile = {
   links: string;
   bio: string;
   resumeText: string;
+  /** Pasted essays / emails so drafts can match the student's voice */
+  writingSamples: string;
   parentName: string;
   parentEmail: string;
   customFacts: CustomFact[];
@@ -161,6 +163,7 @@ export const EMPTY_PROFILE: StudentProfile = {
   links: "",
   bio: "",
   resumeText: "",
+  writingSamples: "",
   parentName: "",
   parentEmail: "",
   customFacts: [],

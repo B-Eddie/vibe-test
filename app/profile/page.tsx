@@ -6,8 +6,9 @@ export default function ProfilePage() {
       <header className="page-header">
         <h1>Background</h1>
         <p>
-          Your reusable applicant packet — stored only in this browser. The
-          apply desk uses it to fill Google Forms and other applications.
+          Your reusable applicant packet — stored only in this browser. Add a
+          writing sample so drafts sound like you. The apply desk uses this to
+          fill Google Forms and other applications.
         </p>
       </header>
       <ProfileForm />

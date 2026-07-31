@@ -22,6 +22,9 @@ export function profileToPromptContext(profile: StudentProfile): string {
     `Links: ${profile.links}`,
     `Bio: ${profile.bio}`,
     `Resume: ${profile.resumeText}`,
+    profile.writingSamples?.trim()
+      ? `Writing style samples (match this voice in essays/short answers):\n${profile.writingSamples.trim()}`
+      : "",
     `Parent/guardian: ${profile.parentName} <${profile.parentEmail}>`,
     facts ? `Extra facts:\n${facts}` : "",
   ]
