@@ -123,9 +123,59 @@ type FieldKind =
   | "skills"
   | "interests"
   | "essay"
+  | "financial"
   | "short_fact"
   | "choice"
   | "other";
+
+function wordCount(value: string): number {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+/** Strip fill-path instructions that must never appear inside answers. */
+export function cleanOpportunityLabel(raw?: string | null): string {
+  if (!raw) return "";
+  const lines = raw
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const usable: string[] = [];
+  for (const line of lines) {
+    if (looksLikeFillInstruction(line)) break;
+    usable.push(line);
+  }
+  const joined = usable.join(" ").replace(/\s+/g, " ").trim();
+  if (!joined || looksLikeFillInstruction(joined)) return "";
+  return joined.slice(0, 160);
+}
+
+function looksLikeFillInstruction(value: string): boolean {
+  const t = value.toLowerCase();
+  return (
+    t.includes("only fill these currently visible") ||
+    t.includes("submit form vs proceed") ||
+    t.includes("choose proceed/continue") ||
+    t.includes("choose proceed") ||
+    t.includes("later sections can be completed") ||
+    t.includes("respect the selected path") ||
+    t.includes("currently visible section question")
+  );
+}
+
+function isFinancialQuestion(title: string): boolean {
+  return /financial|family.?income|how much aid|need.?based|household income|socioeconomic|aid you need|tuition aid|scholarship need/.test(
+    title,
+  );
+}
+
+function isProjectChallengeEssay(title: string): boolean {
+  return /worked on|hardest part|deal with that challenge|something you built|over several weeks|project you|challenge you faced|obstacle/.test(
+    title,
+  );
+}
 
 function classifyField(question: FormQuestion): FieldKind {
   const title = titleOf(question);
@@ -157,9 +207,11 @@ function classifyField(question: FormQuestion): FieldKind {
   if (/\bsat\b/.test(title)) return "sat";
   if (/\bact\b/.test(title)) return "act";
   if (/\bgpa\b|grade point/.test(title)) return "gpa";
+  if (isFinancialQuestion(title)) return "financial";
   if (
     (title.includes("school") || title.includes("high school")) &&
-    !title.includes("name")
+    !title.includes("name") &&
+    question.type !== "paragraph"
   ) {
     return "school";
   }
@@ -307,11 +359,27 @@ function draftNarrative(
       .find(Boolean),
     profile.awards,
   );
-  const target = opportunity || "this opportunity";
+  const target =
+    cleanOpportunityLabel(opportunity) || "this opportunity";
   const title = titleOf(question);
   const kind = classifyField(question);
 
+  if (kind === "financial") {
+    return "";
+  }
+
   if (kind === "essay" || title.includes("why") || title.includes("motivate")) {
+    if (isProjectChallengeEssay(title)) {
+      const project =
+        firstNonEmpty(activities, resumeBit, profile.bio) ||
+        `projects related to ${interests}`;
+      return [
+        `Over several weeks I worked on ${project.replace(/^\s*i am\b/i, "being").replace(/\.$/, "")}.`,
+        "The hardest part was staying consistent when progress slowed and scope kept growing.",
+        `I dealt with that by breaking the work into smaller milestones, asking mentors/teammates for feedback, and focusing on one blocker at a time until I could ship something usable with ${skills}.`,
+      ].join(" ");
+    }
+
     const pieces = [
       `As ${grade}${school}${city}, I care about ${interests}.`,
       activities
@@ -320,11 +388,10 @@ function draftNarrative(
       resumeBit ? `Recently, ${resumeBit}.` : "",
       `I want to contribute to ${target} by bringing ${skills} and a willingness to learn quickly.`,
     ];
-    // Prefer a rewritten bio-informed draft over pasting the bio verbatim.
-    if (profile.bio.trim()) {
+    if (profile.bio.trim() && !isProjectChallengeEssay(title)) {
       return [
         `As ${grade}${school}${city}, ${profile.bio.trim().replace(/^\s*i am\b/i, "I am").replace(/\.$/, "")}.`,
-        `For ${target}, I can contribute through ${skills} while growing in ${interests}.`,
+        `I am excited about ${target} and can contribute through ${skills} while growing in ${interests}.`,
       ].join(" ");
     }
     return pieces.filter(Boolean).join(" ");
@@ -350,6 +417,49 @@ function draftNarrative(
   }
 
   return `As ${grade}${school}, I am excited about ${target} and can contribute through ${skills}.`;
+}
+
+/** Answers that are clearly the wrong shape for the question. */
+function isBadGeneratedAnswer(
+  question: FormQuestion,
+  value: string,
+  profile: StudentProfile,
+): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (looksLikeFillInstruction(trimmed)) return true;
+  if (isFakePlaceholderValue(trimmed)) return true;
+
+  const kind = classifyField(question);
+  const school = profile.school.trim().toLowerCase();
+
+  if (kind === "financial") {
+    // Only keep if it actually discusses finances / aid — not a bio dump.
+    if (wordCount(trimmed) > 40 && !/aid|income|financial|afford|tuition|need/i.test(trimmed)) {
+      return true;
+    }
+    if (looksLikeFillInstruction(trimmed)) return true;
+    if (school && trimmed.toLowerCase() === school) return true;
+    // Generic "As a grade X student..." dumps are not financial answers.
+    if (/^as a grade\b/i.test(trimmed) || /i can contribute through/i.test(trimmed)) {
+      return true;
+    }
+  }
+
+  if (kind === "essay") {
+    if (school && trimmed.toLowerCase() === school) return true;
+    if (wordCount(trimmed) < 20) return true;
+    if (looksLikeFillInstruction(trimmed)) return true;
+    // Single short profile token dumped into a long-form prompt.
+    if (
+      profile.skills.some((s) => s.trim().toLowerCase() === trimmed.toLowerCase()) ||
+      profile.interests.some((s) => s.trim().toLowerCase() === trimmed.toLowerCase())
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function coerceOptionValue(
@@ -611,6 +721,30 @@ function sanitizeAnswer(
     };
   }
 
+  if (kind === "financial") {
+    const fact = pickProfileFact(profile, question.title);
+    if (
+      fact &&
+      !looksLikeFillInstruction(fact) &&
+      !/^as a grade\b/i.test(fact) &&
+      !/i can contribute through/i.test(fact)
+    ) {
+      return {
+        value: fact,
+        confidence: "high",
+        rationale: "From a matching background fact",
+        handled: true,
+      };
+    }
+    // Never invent financial need from bio/skills/path context.
+    return {
+      ...(optional
+        ? blankOptionalAnswer()
+        : blankMissingFact("financial background")),
+      handled: true,
+    };
+  }
+
   return {
     value,
     confidence: value ? "medium" : "low",
@@ -625,6 +759,7 @@ function heuristicFill(
   opportunity?: string,
   application?: ParsedApplication,
 ): FilledAnswer[] {
+  const opportunityLabel = cleanOpportunityLabel(opportunity);
   return questions.map((question) => {
     const optional = isOptionalQuestion(question);
     const kind = classifyField(question);
@@ -661,7 +796,8 @@ function heuristicFill(
         kind === "email" ||
         kind === "phone" ||
         kind === "zip" ||
-        kind === "state")
+        kind === "state" ||
+        kind === "financial")
     ) {
       value = structured.value;
       confidence = structured.confidence;
@@ -682,7 +818,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From skills";
       } else {
-        value = draftNarrative(profile, question, opportunity);
+        value = draftNarrative(profile, question, opportunityLabel);
         confidence = "low";
         rationale = "Synthesized skills answer from your background";
       }
@@ -692,7 +828,7 @@ function heuristicFill(
         confidence = "high";
         rationale = "From interests";
       } else {
-        value = draftNarrative(profile, question, opportunity);
+        value = draftNarrative(profile, question, opportunityLabel);
         confidence = "low";
         rationale = "Synthesized interests answer from your background";
       }
@@ -719,7 +855,7 @@ function heuristicFill(
         rationale =
           "Continue to the next section so the full application is drafted";
       } else {
-        const drafted = draftNarrative(profile, question, opportunity);
+        const drafted = draftNarrative(profile, question, opportunityLabel);
         const coerced = coerceOptionValue(
           question,
           drafted,
@@ -742,7 +878,7 @@ function heuristicFill(
         }
       }
     } else if (kind === "essay") {
-      value = draftNarrative(profile, question, opportunity);
+      value = draftNarrative(profile, question, opportunityLabel);
       confidence = firstNonEmpty(
         profile.bio,
         profile.activities,
@@ -751,7 +887,9 @@ function heuristicFill(
       )
         ? "medium"
         : "low";
-      rationale = "Synthesized from your background for this question";
+      rationale = isProjectChallengeEssay(titleOf(question))
+        ? "Drafted a project/challenge story from your background — edit to match the real details"
+        : "Synthesized from your background for this question";
     } else {
       const fact = pickProfileFact(profile, question.title);
       if (fact && !isWrongFieldProfileDump(question, fact, profile)) {
@@ -761,7 +899,7 @@ function heuristicFill(
       } else if (optional) {
         ({ value, confidence, rationale } = blankOptionalAnswer());
       } else {
-        value = draftNarrative(profile, question, opportunity);
+        value = draftNarrative(profile, question, opportunityLabel);
         if (!value) {
           ({ value, confidence, rationale } = blankMissingFact(
             question.title || "this field",
@@ -822,7 +960,12 @@ function heuristicFill(
       }
     }
 
-    if (optional && (isFakePlaceholderValue(value) || isWrongFieldProfileDump(question, value, profile))) {
+    if (
+      optional &&
+      (isFakePlaceholderValue(value) ||
+        isWrongFieldProfileDump(question, value, profile) ||
+        isBadGeneratedAnswer(question, value, profile))
+    ) {
       ({ value, confidence, rationale } = blankOptionalAnswer());
     }
 
@@ -849,12 +992,14 @@ Return ONLY a JSON array. Each item must be:
 
 Core rules:
 - SYNTHESIZE answers for each question. Do NOT copy-paste the same bio, resume blurb, skills list, or interest token into unrelated fields.
-- Read the question title carefully and answer THAT question only.
+- Read the question title carefully and answer THAT question only. Never put the school name alone as an essay answer.
 - Full name in the profile must be split: first name field gets ONLY the first name; last name field gets ONLY the remaining name parts. Example: "Jeff Bezos" → first="Jeff", last="Bezos".
 - Never put a skill or interest (e.g. "CS", "computer science") into country, SAT, ACT, GPA, ZIP, phone, email, or name fields.
 - For factual fields (country, SAT, ACT, GPA, ZIP, state): use a value only if the profile/custom facts explicitly contain it. Otherwise value must be "".
 - Optional fields (required=false or title contains "optional"): if the profile has no real value, set value to "". Do not invent fake phone/email/scores.
-- Required essays / why-us / about-you: write a fresh answer tailored to the prompt, using profile details as ingredients, not as a verbatim paste.
+- Financial aid / family financial background (fieldKind=financial): ONLY answer if the profile/custom facts explicitly discuss finances or aid need. Otherwise value MUST be "". Never paste bio, skills, or drafting instructions into financial fields.
+- Required essays / why-us / about-you: write a fresh answer tailored to the prompt, using profile details as ingredients, not as a verbatim paste. Project/challenge essays must describe a real effort over time, the hardest part, and how it was handled — at least a short paragraph, never a 1–4 word stub.
+- NEVER include fillInstructions, path guidance, or phrases like "Only fill these currently visible section question(s)" inside any answer value.
 - When writing style samples exist, match tone/voice without copying sample text into unrelated answers.
 - Do not invent awards, GPAs, test scores, employers, or credentials absent from the profile.
 - For multiple_choice/dropdown: value MUST be exactly one of the provided options, or "" when optional and nothing fits.
@@ -868,14 +1013,17 @@ export async function fillApplicationAnswers(options: {
   profile: StudentProfile;
   application: ParsedApplication;
   opportunityContext?: string;
+  /** Drafting guidance only — never used as answer content. */
+  fillInstructions?: string;
 }): Promise<{
   answers: FilledAnswer[];
   provider: "gemini" | "local-fallback";
   geminiError: string | null;
   geminiModel: string | null;
 }> {
-  const opportunity =
-    options.opportunityContext ?? options.application.title;
+  const opportunity = cleanOpportunityLabel(
+    options.opportunityContext || options.application.title,
+  ) || options.application.title;
   const fallback = heuristicFill(
     options.profile,
     options.application.questions,
@@ -899,7 +1047,7 @@ export async function fillApplicationAnswers(options: {
     system: FILL_SYSTEM_PROMPT,
     user: JSON.stringify({
       instruction:
-        "Synthesize a distinct answer for each question from the student profile. Split first/last name correctly. Never reuse skills/interests as country or test scores. Leave unknown factual fields blank.",
+        "Synthesize a distinct answer for each question from the student profile. Split first/last name correctly. Never reuse skills/interests as country or test scores. Leave unknown factual and financial fields blank. Never copy fillInstructions into answer values.",
       nameSplitHint: names.full
         ? {
             fullName: names.full,
@@ -909,6 +1057,7 @@ export async function fillApplicationAnswers(options: {
         : null,
       student: profileToPromptContext(options.profile),
       opportunity,
+      fillInstructions: options.fillInstructions || null,
       formTitle: options.application.title,
       formDescription: options.application.description,
       questions: options.application.questions.map((q) => ({
@@ -964,6 +1113,7 @@ export async function fillApplicationAnswers(options: {
     if (!question) return base;
 
     const optional = isOptionalQuestion(question);
+    const kind = classifyField(question);
     const aiProvided = typeof ai?.value === "string";
     let value = aiProvided ? String(ai?.value ?? "").trim() : base.value;
     const aiConfidence: FilledAnswer["confidence"] | null =
@@ -1002,13 +1152,36 @@ export async function fillApplicationAnswers(options: {
     if (
       value &&
       (isWrongFieldProfileDump(question, value, options.profile) ||
-        isFakePlaceholderValue(value))
+        isFakePlaceholderValue(value) ||
+        isBadGeneratedAnswer(question, value, options.profile))
     ) {
+      if (kind === "essay" && !optional) {
+        const rewritten = draftNarrative(
+          options.profile,
+          question,
+          opportunity,
+        );
+        if (
+          rewritten &&
+          !isBadGeneratedAnswer(question, rewritten, options.profile)
+        ) {
+          return {
+            ...base,
+            value: rewritten,
+            confidence: "medium",
+            rationale:
+              "Rewrote a thin/leaked model answer into a real response for this question",
+          };
+        }
+      }
       if (optional) {
         return { ...base, ...blankOptionalAnswer() };
       }
-      // Prefer synthesized fallback over a dumped skill/bio.
-      if (base.value && !isWrongFieldProfileDump(question, base.value, options.profile)) {
+      if (
+        base.value &&
+        !isWrongFieldProfileDump(question, base.value, options.profile) &&
+        !isBadGeneratedAnswer(question, base.value, options.profile)
+      ) {
         return {
           ...base,
           confidence: "low",
@@ -1023,10 +1196,11 @@ export async function fillApplicationAnswers(options: {
     // Reject verbatim bio/resume paste into essay if identical across fields later;
     // still allow bio-informed synthesis from heuristic when AI pasted raw bio.
     if (
-      classifyField(question) === "essay" &&
+      kind === "essay" &&
       value &&
       (value === options.profile.bio.trim() ||
-        value === options.profile.resumeText.trim())
+        value === options.profile.resumeText.trim() ||
+        isBadGeneratedAnswer(question, value, options.profile))
     ) {
       value = draftNarrative(options.profile, question, opportunity);
       confidence = "medium";
@@ -1040,7 +1214,8 @@ export async function fillApplicationAnswers(options: {
       if (
         base.value.trim() &&
         !isFakePlaceholderValue(base.value) &&
-        !isWrongFieldProfileDump(question, base.value, options.profile)
+        !isWrongFieldProfileDump(question, base.value, options.profile) &&
+        !isBadGeneratedAnswer(question, base.value, options.profile)
       ) {
         return {
           ...base,
