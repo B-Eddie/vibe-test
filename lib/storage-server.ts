@@ -8,20 +8,21 @@ export function profileToPromptContext(profile: StudentProfile): string {
     .join("\n");
 
   return [
-    `Name: ${profile.name}`,
+    `Full name: ${profile.name}`,
+    `Name split hint: use first token as first name and remaining tokens as last name when the form asks separately`,
     `Email: ${profile.email}`,
     `Phone: ${profile.phone}`,
     `Grade: ${profile.grade}`,
     `School: ${profile.school}`,
     `City: ${profile.city}`,
     `Remote OK: ${profile.remoteOk ? "yes" : "no"}`,
-    `Interests: ${(profile.interests ?? []).join(", ")}`,
-    `Skills: ${(profile.skills ?? []).join(", ")}`,
+    `Interests (only for interest/skills-style questions, never for country/scores/address): ${(profile.interests ?? []).join(", ")}`,
+    `Skills (only for skills-style questions, never for country/scores/address): ${(profile.skills ?? []).join(", ")}`,
     `Activities: ${profile.activities}`,
     `Awards: ${profile.awards}`,
     `Links: ${profile.links}`,
-    `Bio: ${profile.bio}`,
-    `Resume: ${profile.resumeText}`,
+    `Bio (rewrite into question-specific answers; do not paste verbatim into every field): ${profile.bio}`,
+    `Resume (use as source material; do not paste verbatim into unrelated fields): ${profile.resumeText}`,
     profile.writingSamples?.trim()
       ? `Writing style samples (match this voice in essays/short answers):\n${profile.writingSamples.trim()}`
       : "",
