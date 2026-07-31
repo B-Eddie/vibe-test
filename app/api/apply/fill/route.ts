@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
     profile?: StudentProfile;
     application?: ParsedApplication;
     opportunityContext?: string;
+    onlyEntryIds?: string[];
+    pathContext?: string;
   };
   try {
     body = await request.json();
@@ -34,10 +36,37 @@ export async function POST(request: NextRequest) {
     customFacts: body.profile?.customFacts ?? [],
   };
 
+  const only = body.onlyEntryIds?.length
+    ? new Set(body.onlyEntryIds)
+    : null;
+
+  const scopedApplication: ParsedApplication = only
+    ? {
+        ...body.application,
+        questions: body.application.questions.filter((q) =>
+          only.has(q.entryId),
+        ),
+      }
+    : body.application;
+
+  if (!scopedApplication.questions.length) {
+    return NextResponse.json({
+      answers: [],
+      provider: "local-fallback",
+      geminiError: null,
+      geminiModel: null,
+    });
+  }
+
   const result = await fillApplicationAnswers({
     profile,
-    application: body.application,
-    opportunityContext: body.opportunityContext,
+    application: scopedApplication,
+    opportunityContext: [
+      body.opportunityContext,
+      body.pathContext,
+    ]
+      .filter(Boolean)
+      .join("\n"),
   });
 
   return NextResponse.json(result);

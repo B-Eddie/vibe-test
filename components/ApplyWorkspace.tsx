@@ -9,6 +9,15 @@ import {
   buildConsoleScript,
 } from "@/lib/fill-script";
 import {
+  ensureApplicationSections,
+  hasSectionBranching,
+  mergeAnswerLists,
+  orderAnswersForPath,
+  pruneAnswersAfterQuestion,
+  questionsMissingAnswers,
+  resolveFormPath,
+} from "@/lib/form-path";
+import {
   loadProfile,
   profileCompleteness,
   upsertTrackerStatus,
@@ -152,6 +161,10 @@ export function ApplyWorkspace() {
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiModel, setGeminiModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionLoadingLabel, setSectionLoadingLabel] = useState(
+    "Drafting the next section…",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
@@ -161,17 +174,34 @@ export function ApplyWorkspace() {
   const fromId = searchParams.get("from") || "";
 
   const completeness = useMemo(() => profileCompleteness(profile), [profile]);
+  const normalizedApp = useMemo(
+    () => (application ? ensureApplicationSections(application) : null),
+    [application],
+  );
+  const formPath = useMemo(
+    () =>
+      normalizedApp
+        ? resolveFormPath(normalizedApp, answers)
+        : { sectionIndexes: [0], questions: [], pageHistory: "0", branchingEntryIds: [] },
+    [normalizedApp, answers],
+  );
+  const visibleAnswers = useMemo(
+    () =>
+      normalizedApp ? orderAnswersForPath(normalizedApp, answers) : answers,
+    [normalizedApp, answers],
+  );
   const optionMap = useMemo(() => {
     const map: Record<string, string[]> = {};
-    for (const question of application?.questions || []) {
+    for (const question of normalizedApp?.questions || []) {
       if (question.options?.length) map[question.entryId] = question.options;
     }
     return map;
-  }, [application]);
+  }, [normalizedApp]);
   const fillPayload = useMemo(
-    () => answersToFillPayloadWithOptions(answers, optionMap),
-    [answers, optionMap],
-  );  const bookmarklet = useMemo(
+    () => answersToFillPayloadWithOptions(visibleAnswers, optionMap),
+    [visibleAnswers, optionMap],
+  );
+  const bookmarklet = useMemo(
     () => buildBookmarklet(fillPayload),
     [fillPayload],
   );
@@ -179,12 +209,111 @@ export function ApplyWorkspace() {
     () => buildConsoleScript(fillPayload),
     [fillPayload],
   );
+  const branching = Boolean(
+    normalizedApp && hasSectionBranching(normalizedApp),
+  );
 
   useEffect(() => {
     setProfile(loadProfile());
     const preset = searchParams.get("url");
     if (preset) setUrl(preset);
   }, [searchParams]);
+
+  async function requestFill(
+    app: ParsedApplication,
+    onlyEntryIds: string[],
+    pathContext?: string,
+  ) {
+    const fillRes = await fetch("/api/apply/fill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profile,
+        application: app,
+        opportunityContext: opportunityTitle || app.title,
+        onlyEntryIds,
+        pathContext,
+      }),
+    });
+
+    let fillData: {
+      answers?: FilledAnswer[];
+      provider?: string;
+      error?: string;
+      geminiError?: string | null;
+      geminiModel?: string | null;
+    } = {};
+    try {
+      fillData = (await fillRes.json()) as typeof fillData;
+    } catch {
+      throw new Error(
+        `Could not draft answers (HTTP ${fillRes.status}). Check GEMINI_API_KEY.`,
+      );
+    }
+    if (!fillRes.ok || !fillData.answers) {
+      throw new Error(fillData.error || "Could not draft answers");
+    }
+    return fillData;
+  }
+
+  /** Fill the current path section-by-section as choices unlock later pages. */
+  async function fillAlongPath(
+    app: ParsedApplication,
+    seedAnswers: FilledAnswer[],
+  ) {
+    const ensured = ensureApplicationSections(app);
+    let working = [...seedAnswers];
+    let lastProvider: string | null = null;
+    let lastError: string | null = null;
+    let lastModel: string | null = null;
+    const maxPasses = Math.max(ensured.sections?.length || 1, 1) + 2;
+
+    for (let pass = 0; pass < maxPasses; pass += 1) {
+      const missing = questionsMissingAnswers(ensured, working);
+      if (!missing.length) break;
+
+      const path = resolveFormPath(ensured, working);
+      const sectionIndexes = [
+        ...new Set(
+          missing
+            .map((q) => q.sectionIndex ?? 0)
+            .filter((index) => path.sectionIndexes.includes(index)),
+        ),
+      ];
+      const sectionTitles = sectionIndexes
+        .map(
+          (index) =>
+            ensured.sections?.find((section) => section.index === index)
+              ?.title || `Section ${index + 1}`,
+        )
+        .join(", ");
+
+      setSectionLoadingLabel(
+        sectionTitles
+          ? `Drafting ${sectionTitles}…`
+          : "Drafting the next section…",
+      );
+
+      const fillData = await requestFill(
+        ensured,
+        missing.map((q) => q.entryId),
+        `Only fill these currently visible section question(s): ${missing
+          .map((q) => q.title)
+          .join("; ")}. Respect the selected path through the form.`,
+      );
+      working = mergeAnswerLists(working, fillData.answers || []);
+      lastProvider = fillData.provider ?? lastProvider;
+      lastError = fillData.geminiError ?? lastError;
+      lastModel = fillData.geminiModel ?? lastModel;
+    }
+
+    return {
+      answers: orderAnswersForPath(ensured, working),
+      provider: lastProvider,
+      geminiError: lastError,
+      geminiModel: lastModel,
+    };
+  }
 
   async function prepareApplication(nextUrl = url) {
     setError(null);
@@ -205,6 +334,8 @@ export function ApplyWorkspace() {
     }
 
     setLoading(true);
+    setSectionLoading(true);
+    setSectionLoadingLabel("Reading the form and drafting section 1…");
     try {
       const parseRes = await fetch("/api/apply/parse", {
         method: "POST",
@@ -236,62 +367,80 @@ export function ApplyWorkspace() {
         );
       }
 
-      const fillRes = await fetch("/api/apply/fill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile,
-          application: parseData.application,
-          opportunityContext: opportunityTitle || parseData.application.title,
-        }),
-      });
+      const app = ensureApplicationSections(parseData.application);
+      const filled = await fillAlongPath(app, []);
 
-      let fillData: {
-        answers?: FilledAnswer[];
-        provider?: string;
-        error?: string;
-        geminiError?: string | null;
-        geminiModel?: string | null;
-      } = {};
-      try {
-        fillData = (await fillRes.json()) as typeof fillData;
-      } catch {
-        throw new Error(
-          `Could not draft answers (HTTP ${fillRes.status}). Check GEMINI_API_KEY.`,
-        );
-      }
-
-      if (!fillRes.ok || !fillData.answers) {
-        throw new Error(fillData.error || "Could not draft answers");
-      }
-
-      setApplication(parseData.application);
-      setAnswers(fillData.answers);
-      setProvider(fillData.provider ?? null);
-      setGeminiError(fillData.geminiError ?? null);
-      setGeminiModel(fillData.geminiModel ?? null);
+      setApplication(app);
+      setAnswers(filled.answers);
+      setProvider(filled.provider ?? null);
+      setGeminiError(filled.geminiError ?? null);
+      setGeminiModel(filled.geminiModel ?? null);
       setStep("review");
 
-      const id = fromId || targetIdFor(parseData.application.url);
+      const id = fromId || targetIdFor(app.url);
       upsertTrackerStatus(id, "ready", {
-        title: opportunityTitle || parseData.application.title,
-        url: parseData.application.url,
-        kind: parseData.application.kind,
+        title: opportunityTitle || app.title,
+        url: app.url,
+        kind: app.kind,
         notes: "Answers ready — review then autofill",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
+      setSectionLoading(false);
     }
   }
 
-  function updateAnswer(entryId: string, value: string) {
-    setAnswers((current) =>
-      current.map((answer) =>
+  async function updateAnswer(entryId: string, value: string) {
+    if (!normalizedApp) return;
+
+    const question = normalizedApp.questions.find((q) => q.entryId === entryId);
+    const isBranchPoint = Boolean(question?.optionBranches?.length);
+
+    if (!isBranchPoint) {
+      setAnswers((current) =>
+        current.map((answer) =>
+          answer.entryId === entryId ? { ...answer, value } : answer,
+        ),
+      );
+      return;
+    }
+
+    const nextAnswers = pruneAnswersAfterQuestion(
+      normalizedApp,
+      answers.map((answer) =>
         answer.entryId === entryId ? { ...answer, value } : answer,
       ),
+      entryId,
+    ).map((answer) =>
+      answer.entryId === entryId ? { ...answer, value } : answer,
     );
+
+    setAnswers(orderAnswersForPath(normalizedApp, nextAnswers));
+    setConfirmed(false);
+    setSectionLoading(true);
+    setSectionLoadingLabel("Updating path and drafting the new section…");
+    setError(null);
+
+    try {
+      const filled = await fillAlongPath(normalizedApp, nextAnswers);
+      setAnswers(filled.answers);
+      setProvider(filled.provider ?? provider);
+      setGeminiError(filled.geminiError ?? null);
+      setGeminiModel(filled.geminiModel ?? null);
+      setStatusNote(
+        "Path updated — new section answers were drafted from your background.",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not draft the new section. Try again.",
+      );
+    } finally {
+      setSectionLoading(false);
+    }
   }
 
   async function copyFillScript() {
@@ -314,7 +463,7 @@ export function ApplyWorkspace() {
   }
 
   async function submitGoogle() {
-    if (!application?.submitUrl) return;
+    if (!application?.submitUrl || !normalizedApp) return;
     if (!confirmed) {
       setError("Confirm you’ve reviewed every answer before submitting.");
       return;
@@ -323,10 +472,11 @@ export function ApplyWorkspace() {
     setSubmitting(true);
     setError(null);
     const id = fromId || targetIdFor(application.url);
+    const path = resolveFormPath(normalizedApp, answers);
 
     try {
       const payload: Record<string, string> = {};
-      for (const answer of answers) {
+      for (const answer of orderAnswersForPath(normalizedApp, answers)) {
         if (answer.manualOnly) continue;
         payload[answer.entryId] = answer.value;
       }
@@ -339,6 +489,7 @@ export function ApplyWorkspace() {
           answers: payload,
           fbzx: application.fbzx,
           confirm: true,
+          pageHistory: path.pageHistory,
         }),
       });
       const data = (await res.json()) as {
@@ -383,8 +534,8 @@ export function ApplyWorkspace() {
     setStep("done");
   }
 
-  const manualCount = answers.filter((answer) => answer.manualOnly).length;
-  const lowConfidence = answers.filter(
+  const manualCount = visibleAnswers.filter((answer) => answer.manualOnly).length;
+  const lowConfidence = visibleAnswers.filter(
     (answer) => answer.confidence === "low" && !answer.manualOnly,
   ).length;
   const isGoogle = application?.kind === "google-form";
@@ -471,7 +622,7 @@ export function ApplyWorkspace() {
           </div>
         ) : null}
 
-        {step === "review" && application ? (
+        {step === "review" && application && normalizedApp ? (
           <div className="apply-review-stage">
             <div className="apply-meta-card">
               <div>
@@ -479,13 +630,29 @@ export function ApplyWorkspace() {
                 <p>{application.description || application.url}</p>
                 <div className="tag-row">
                   <span>{application.platform}</span>
-                  <span>{application.questions.length} fields</span>
+                  <span>
+                    {visibleAnswers.length} visible field
+                    {visibleAnswers.length === 1 ? "" : "s"}
+                  </span>
+                  {branching ? (
+                    <span>
+                      {formPath.sectionIndexes.length} section
+                      {formPath.sectionIndexes.length === 1 ? "" : "s"} on path
+                    </span>
+                  ) : null}
                   <span>
                     {isGoogle ? "Direct submit available" : "Live-page autofill"}
                   </span>
                   {provider ? <span>{provider}</span> : null}
                   {geminiModel ? <span>{geminiModel}</span> : null}
                 </div>
+                {branching ? (
+                  <p className="provider-note" style={{ marginTop: "0.75rem" }}>
+                    This form has multiple sections. Only the path unlocked by
+                    your current choices is shown. Changing a branching option
+                    redrafts the next section.
+                  </p>
+                ) : null}
                 {geminiError ? (
                   <p className="error-note" style={{ marginTop: "0.75rem" }}>
                     Gemini did not fill this form ({geminiError}). Showing
@@ -522,34 +689,60 @@ export function ApplyWorkspace() {
             )}
 
             <div className="answer-list">
-              {answers.map((answer) => {
-                const question = application.questions.find(
-                  (item) => item.entryId === answer.entryId,
+              {formPath.sectionIndexes.map((sectionIndex) => {
+                const section = normalizedApp.sections?.find(
+                  (item) => item.index === sectionIndex,
                 );
+                const sectionAnswers = visibleAnswers.filter((answer) => {
+                  const question = normalizedApp.questions.find(
+                    (item) => item.entryId === answer.entryId,
+                  );
+                  return (question?.sectionIndex ?? 0) === sectionIndex;
+                });
+                if (!sectionAnswers.length) return null;
                 return (
-                  <div key={answer.entryId} className="answer-card">
-                    <div className="answer-card-head">
-                      <strong>{answer.title}</strong>
-                      <span className={`confidence ${answer.confidence}`}>
-                        {answer.manualOnly
-                          ? "manual"
-                          : question?.type &&
-                              [
-                                "multiple_choice",
-                                "dropdown",
-                                "checkboxes",
-                                "scale",
-                              ].includes(question.type)
-                            ? `${answer.confidence} · ${question.type.replace("_", " ")}`
-                            : answer.confidence}
-                      </span>
-                    </div>
-                    <p className="rationale">{answer.rationale}</p>
-                    <AnswerEditor
-                      answer={answer}
-                      question={question}
-                      onChange={(value) => updateAnswer(answer.entryId, value)}
-                    />
+                  <div key={`section-${sectionIndex}`} className="apply-section-block">
+                    {branching || (normalizedApp.sections?.length || 0) > 1 ? (
+                      <div className="apply-section-heading">
+                        <h4>{section?.title || `Section ${sectionIndex + 1}`}</h4>
+                        {section?.description ? <p>{section.description}</p> : null}
+                      </div>
+                    ) : null}
+                    {sectionAnswers.map((answer) => {
+                      const question = normalizedApp.questions.find(
+                        (item) => item.entryId === answer.entryId,
+                      );
+                      return (
+                        <div key={answer.entryId} className="answer-card">
+                          <div className="answer-card-head">
+                            <strong>{answer.title}</strong>
+                            <span className={`confidence ${answer.confidence}`}>
+                              {answer.manualOnly
+                                ? "manual"
+                                : question?.optionBranches?.length
+                                  ? `${answer.confidence} · branching`
+                                  : question?.type &&
+                                      [
+                                        "multiple_choice",
+                                        "dropdown",
+                                        "checkboxes",
+                                        "scale",
+                                      ].includes(question.type)
+                                    ? `${answer.confidence} · ${question.type.replace("_", " ")}`
+                                    : answer.confidence}
+                            </span>
+                          </div>
+                          <p className="rationale">{answer.rationale}</p>
+                          <AnswerEditor
+                            answer={answer}
+                            question={question}
+                            onChange={(value) =>
+                              void updateAnswer(answer.entryId, value)
+                            }
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -576,6 +769,7 @@ export function ApplyWorkspace() {
                   <button
                     type="button"
                     className="btn-secondary"
+                    disabled={sectionLoading}
                     onClick={launchPageFill}
                   >
                     Autofill in browser instead
@@ -583,7 +777,7 @@ export function ApplyWorkspace() {
                   <button
                     type="button"
                     className="btn-primary"
-                    disabled={submitting}
+                    disabled={submitting || sectionLoading}
                     onClick={submitGoogle}
                   >
                     {submitting ? "Submitting…" : "Submit Google Form"}
@@ -602,6 +796,7 @@ export function ApplyWorkspace() {
                 <button
                   type="button"
                   className="btn-primary"
+                  disabled={sectionLoading}
                   onClick={launchPageFill}
                 >
                   Autofill on live page
@@ -714,6 +909,16 @@ export function ApplyWorkspace() {
 
         {error ? <p className="error-note">{error}</p> : null}
       </section>
+
+      {sectionLoading ? (
+        <div className="section-loading-overlay" role="status" aria-live="polite">
+          <div className="section-loading-card">
+            <div className="section-loading-spinner" aria-hidden />
+            <p>{sectionLoadingLabel}</p>
+            <span>Only the unlocked section path is drafted.</span>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

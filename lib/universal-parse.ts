@@ -553,7 +553,20 @@ export async function parseAnyApplication(
     submitUrl: classicHtmlForm ? extracted.formAction : null,
     title,
     description: `${platform} application ready.${blockedNote} InternHarbor will autofill the live page from your background.`,
-    questions: withMatchHints(questions),
+    questions: withMatchHints(questions).map((question) => ({
+      ...question,
+      sectionIndex: 0,
+    })),
+    sections: [
+      {
+        id: "section-0",
+        index: 0,
+        title: "Application",
+        questionEntryIds: questions.map((q) => q.entryId || q.id),
+        defaultNextSectionIndex: null,
+      },
+    ],
+    hasBranching: false,
     fbzx: null,
     collectEmail: questions.some((q) => q.type === "email"),
     supportsAutoSubmit: false,

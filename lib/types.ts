@@ -94,6 +94,25 @@ export type FormQuestion = {
   matchHints?: string[];
   name?: string;
   selector?: string;
+  /** Zero-based section/page index when the form is multi-section */
+  sectionIndex?: number;
+  /** Option → next section (null = submit / end) for branching questions */
+  optionBranches?: FormOptionBranch[];
+};
+
+export type FormOptionBranch = {
+  option: string;
+  nextSectionIndex: number | null;
+};
+
+export type FormSection = {
+  id: string;
+  index: number;
+  title: string;
+  description?: string;
+  questionEntryIds: string[];
+  /** Default next section when no branching answer applies; null ends the form */
+  defaultNextSectionIndex: number | null;
 };
 
 export type ParsedApplication = {
@@ -103,6 +122,8 @@ export type ParsedApplication = {
   title: string;
   description: string;
   questions: FormQuestion[];
+  sections?: FormSection[];
+  hasBranching?: boolean;
   fbzx: string | null;
   collectEmail: boolean;
   supportsAutoSubmit: boolean;
