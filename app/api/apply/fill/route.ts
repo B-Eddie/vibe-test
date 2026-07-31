@@ -61,12 +61,10 @@ export async function POST(request: NextRequest) {
   const result = await fillApplicationAnswers({
     profile,
     application: scopedApplication,
-    opportunityContext: [
-      body.opportunityContext,
-      body.pathContext,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    // Keep the program title separate from drafting instructions so path
+    // guidance never gets pasted into essay / short answers.
+    opportunityContext: body.opportunityContext || scopedApplication.title,
+    fillInstructions: body.pathContext || undefined,
   });
 
   return NextResponse.json(result);
