@@ -132,7 +132,16 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function readOptionsAndBranches(
+/**
+ * Read choice labels + optional go-to-section targets.
+ *
+ * Google Forms stores the next page id at option[2] only:
+ *   ["Label", null, <pageId|-1>]
+ * A trailing `0` often appears at option[4] on ordinary choices — that is NOT
+ * navigation. Scanning past index 2 used to treat every MC as "submit", which
+ * hid later sections and let users submit an incomplete path.
+ */
+export function readOptionsAndBranches(
   entryConfig: unknown,
   pageIdToIndex: Map<number, number>,
 ): { options: string[]; branches: FormOptionBranch[] } {
@@ -147,28 +156,28 @@ function readOptionsAndBranches(
     if (!label) continue;
     options.push(label);
 
-    // Google may store go-to-section on several indexes depending on form version.
+    const candidate = row[2];
     let navRaw: number | null = null;
-    for (const idx of [2, 3, 4, 5]) {
-      const candidate = row[idx];
-      if (typeof candidate === "number") {
-        navRaw = candidate;
-        break;
-      }
-      if (typeof candidate === "string" && /^-?\d+$/.test(candidate)) {
-        navRaw = Number(candidate);
-        break;
-      }
+    if (typeof candidate === "number") {
+      navRaw = candidate;
+    } else if (typeof candidate === "string" && /^-?\d+$/.test(candidate)) {
+      navRaw = Number(candidate);
     }
+    // No go-to on this option → follow the section's default next page.
     if (navRaw === null) continue;
+    // -1 / 0 at option[2] means submit / end form.
     if (navRaw <= 0) {
       branches.push({ option: label, nextSectionIndex: null });
       continue;
     }
     const nextIndex = pageIdToIndex.get(navRaw);
+    if (typeof nextIndex !== "number") {
+      // Unknown page id — omit the branch so defaultNext can apply via backfill.
+      continue;
+    }
     branches.push({
       option: label,
-      nextSectionIndex: typeof nextIndex === "number" ? nextIndex : null,
+      nextSectionIndex: nextIndex,
     });
   }
 

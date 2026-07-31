@@ -8,9 +8,12 @@ import {
   buildConsoleScript,
 } from "@/lib/fill-script";
 import {
+  backfillOptionBranches,
   canChangeFormPath,
   ensureApplicationSections,
+  ensurePathAnswerRows,
   hasSectionBranching,
+  isApplyPathReady,
   mergeAnswerLists,
   nextSectionAfterAnswer,
   orderAnswersForPath,
@@ -46,10 +49,12 @@ function AnswerEditor({
   answer,
   question,
   onChange,
+  disabled = false,
 }: {
   answer: FilledAnswer;
   question?: FormQuestion;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   const type = question?.type || answer.type;
   const options = question?.options?.length
@@ -66,10 +71,17 @@ function AnswerEditor({
     );
   }
 
+  if (disabled && !answer.value.trim()) {
+    return (
+      <p className="empty-state">Drafting this answer from your background…</p>
+    );
+  }
+
   if ((type === "dropdown" || type === "scale") && options.length) {
     return (
       <select
         value={options.includes(answer.value) ? answer.value : ""}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       >
         <option value="" disabled>
@@ -93,6 +105,7 @@ function AnswerEditor({
               type="radio"
               name={`answer-${answer.entryId}`}
               checked={answer.value === option}
+              disabled={disabled}
               onChange={() => onChange(option)}
             />
             <span>{option}</span>
@@ -116,6 +129,7 @@ function AnswerEditor({
             <input
               type="checkbox"
               checked={selected.has(option)}
+              disabled={disabled}
               onChange={(e) => {
                 const next = new Set(selected);
                 if (e.target.checked) next.add(option);
@@ -135,6 +149,7 @@ function AnswerEditor({
       <textarea
         rows={5}
         value={answer.value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       />
     );
@@ -143,6 +158,7 @@ function AnswerEditor({
   return (
     <input
       value={answer.value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       type={type === "email" ? "email" : type === "date" ? "date" : "text"}
     />
@@ -221,12 +237,24 @@ export function ApplyWorkspace() {
   const branching = Boolean(
     normalizedApp && hasSectionBranching(normalizedApp),
   );
+  const pathReadiness = useMemo(
+    () =>
+      normalizedApp
+        ? isApplyPathReady(normalizedApp, answers, { loading: sectionLoading })
+        : { ready: false, missingRequired: [], reason: "Prepare an application first." },
+    [normalizedApp, answers, sectionLoading],
+  );
 
   useEffect(() => {
     setProfile(loadProfile());
     const preset = searchParams.get("url");
     if (preset) setUrl(preset);
   }, [searchParams]);
+
+  // Never keep a stale confirm while the path is still drafting or incomplete.
+  useEffect(() => {
+    if (!pathReadiness.ready && confirmed) setConfirmed(false);
+  }, [pathReadiness.ready, confirmed]);
 
   async function requestFill(
     app: ParsedApplication,
@@ -270,14 +298,15 @@ export function ApplyWorkspace() {
     app: ParsedApplication,
     seedAnswers: FilledAnswer[],
   ) {
-    const ensured = ensureApplicationSections(app);
-    let working = [...seedAnswers];
+    const ensured = backfillOptionBranches(ensureApplicationSections(app));
+    let working = ensurePathAnswerRows(ensured, seedAnswers);
     let lastProvider: string | null = null;
     let lastError: string | null = null;
     let lastModel: string | null = null;
-    const maxPasses = Math.max(ensured.sections?.length || 1, 1) + 2;
+    const maxPasses = Math.max(ensured.sections?.length || 1, 1) + 3;
 
     for (let pass = 0; pass < maxPasses; pass += 1) {
+      working = ensurePathAnswerRows(ensured, working);
       const missing = questionsMissingAnswers(ensured, working);
       if (!missing.length) break;
 
@@ -303,6 +332,9 @@ export function ApplyWorkspace() {
           : "Drafting the next section…",
       );
 
+      // Show unlocked section rows immediately while AI drafts them.
+      setAnswers(ensurePathAnswerRows(ensured, working));
+
       const fillData = await requestFill(
         ensured,
         missing.map((q) => q.entryId),
@@ -311,9 +343,20 @@ export function ApplyWorkspace() {
           .join("; ")}. Respect the selected path through the form.`,
       );
       working = mergeAnswerLists(working, fillData.answers || []);
+      working = ensurePathAnswerRows(ensured, working);
       lastProvider = fillData.provider ?? lastProvider;
       lastError = fillData.geminiError ?? lastError;
       lastModel = fillData.geminiModel ?? lastModel;
+
+      // If the API returned nothing useful, stop looping to avoid an infinite spin.
+      const stillMissing = questionsMissingAnswers(ensured, working);
+      if (
+        stillMissing.length &&
+        stillMissing.every((q) => missing.some((m) => m.entryId === q.entryId)) &&
+        !(fillData.answers || []).some((a) => a.value.trim())
+      ) {
+        break;
+      }
     }
 
     return {
@@ -376,7 +419,9 @@ export function ApplyWorkspace() {
         );
       }
 
-      const app = ensureApplicationSections(parseData.application);
+      const app = backfillOptionBranches(
+        ensureApplicationSections(parseData.application),
+      );
       const filled = await fillAlongPath(app, []);
 
       setApplication(app);
@@ -420,25 +465,27 @@ export function ApplyWorkspace() {
     const previous = answers.find((answer) => answer.entryId === entryId)?.value;
     if (previous === value) return;
 
+    const app = backfillOptionBranches(normalizedApp);
     const seeded = answers.map((answer) =>
       answer.entryId === entryId ? { ...answer, value } : answer,
     );
-    const nextAnswers = pruneAnswersAfterQuestion(
-      normalizedApp,
-      seeded,
-      entryId,
-    ).map((answer) =>
-      answer.entryId === entryId ? { ...answer, value } : answer,
+    const pruned = pruneAnswersAfterQuestion(app, seeded, entryId).map(
+      (answer) =>
+        answer.entryId === entryId ? { ...answer, value } : answer,
     );
 
-    const nextSection = nextSectionAfterAnswer(normalizedApp, entryId, value);
+    // Immediately unlock the new path with placeholder rows so the next
+    // section questions appear under the loader while AI drafts.
+    const withPlaceholders = ensurePathAnswerRows(app, pruned);
+    const nextSection = nextSectionAfterAnswer(app, entryId, value);
     const nextSectionMeta =
       nextSection !== null
-        ? normalizedApp.sections?.find((section) => section.index === nextSection)
+        ? app.sections?.find((section) => section.index === nextSection)
         : null;
 
     const gen = ++branchFillGen.current;
-    setAnswers(orderAnswersForPath(normalizedApp, nextAnswers));
+    setApplication(app);
+    setAnswers(withPlaceholders);
     setConfirmed(false);
     setError(null);
     setStatusNote(null);
@@ -448,20 +495,26 @@ export function ApplyWorkspace() {
     setSectionLoadingLabel(
       nextSectionMeta
         ? `Drafting “${nextSectionMeta.title}”…`
-        : "Drafting the next section…",
+        : nextSection === null
+          ? "Updating path…"
+          : "Drafting the next section…",
     );
 
     try {
-      const filled = await fillAlongPath(normalizedApp, nextAnswers);
+      const filled = await fillAlongPath(app, withPlaceholders);
       if (gen !== branchFillGen.current) return;
       setAnswers(filled.answers);
       setProvider(filled.provider ?? provider);
       setGeminiError(filled.geminiError ?? null);
       setGeminiModel(filled.geminiModel ?? null);
+      const readiness = isApplyPathReady(app, filled.answers, { loading: false });
       setStatusNote(
-        nextSectionMeta
-          ? `Updated path — drafted “${nextSectionMeta.title}” from your background.`
-          : "Path updated — later sections were refreshed from your background.",
+        readiness.ready
+          ? nextSectionMeta
+            ? `Updated path — drafted “${nextSectionMeta.title}”. Review before submitting.`
+            : "Path updated. Review before submitting."
+          : readiness.reason ||
+              "New section loaded — finish any blank required answers before submitting.",
       );
     } catch (err) {
       if (gen !== branchFillGen.current) return;
@@ -486,7 +539,14 @@ export function ApplyWorkspace() {
   }
 
   async function launchPageFill() {
-    if (!application) return;
+    if (!application || !normalizedApp) return;
+    if (!pathReadiness.ready) {
+      setError(
+        pathReadiness.reason ||
+          "Wait for every section on this path to finish drafting before autofill.",
+      );
+      return;
+    }
     setError(null);
     try {
       await copyFillScript();
@@ -500,6 +560,13 @@ export function ApplyWorkspace() {
 
   async function submitGoogle() {
     if (!application?.submitUrl || !normalizedApp) return;
+    if (sectionLoading || !pathReadiness.ready) {
+      setError(
+        pathReadiness.reason ||
+          "Wait for the next section to finish drafting before submitting.",
+      );
+      return;
+    }
     if (!confirmed) {
       setError("Confirm you’ve reviewed every answer before submitting.");
       return;
@@ -514,6 +581,11 @@ export function ApplyWorkspace() {
       const payload: Record<string, string> = {};
       for (const answer of orderAnswersForPath(normalizedApp, answers)) {
         if (answer.manualOnly) continue;
+        if (!answer.value.trim()) {
+          throw new Error(
+            `Missing required answer for “${answer.title}”. Finish the unlocked sections first.`,
+          );
+        }
         payload[answer.entryId] = answer.value;
       }
 
@@ -783,6 +855,10 @@ export function ApplyWorkspace() {
                             <AnswerEditor
                               answer={answer}
                               question={question}
+                              disabled={
+                                sectionLoading &&
+                                !canChangeFormPath(normalizedApp, question)
+                              }
                               onChange={(nextValue) =>
                                 void updateAnswer(answer.entryId, nextValue)
                               }
@@ -848,16 +924,23 @@ export function ApplyWorkspace() {
             {statusNote && step === "review" ? (
               <p className="provider-note">{statusNote}</p>
             ) : null}
+            {!pathReadiness.ready ? (
+              <p className="error-note">
+                {pathReadiness.reason ||
+                  "Finish drafting every unlocked section before submitting."}
+              </p>
+            ) : null}
             {isGoogle ? (
               <>
                 <label className="checkbox-label confirm-row">
                   <input
                     type="checkbox"
-                    checked={confirmed}
+                    checked={confirmed && pathReadiness.ready}
+                    disabled={!pathReadiness.ready || sectionLoading}
                     onChange={(e) => setConfirmed(e.target.checked)}
                   />
-                  I’ve reviewed every answer and want InternHarbor to submit this
-                  Google Form now.
+                  I’ve reviewed every answer on this path and want InternHarbor
+                  to submit this Google Form now.
                 </label>
                 <div className="form-actions">
                   <button
@@ -870,7 +953,7 @@ export function ApplyWorkspace() {
                   <button
                     type="button"
                     className="btn-secondary"
-                    disabled={sectionLoading}
+                    disabled={!pathReadiness.ready || sectionLoading}
                     onClick={launchPageFill}
                   >
                     Autofill in browser instead
@@ -878,10 +961,16 @@ export function ApplyWorkspace() {
                   <button
                     type="button"
                     className="btn-primary"
-                    disabled={submitting || sectionLoading}
+                    disabled={
+                      submitting || sectionLoading || !pathReadiness.ready
+                    }
                     onClick={submitGoogle}
                   >
-                    {submitting ? "Submitting…" : "Submit Google Form"}
+                    {sectionLoading
+                      ? "Drafting section…"
+                      : submitting
+                        ? "Submitting…"
+                        : "Submit Google Form"}
                   </button>
                 </div>
               </>
@@ -897,10 +986,12 @@ export function ApplyWorkspace() {
                 <button
                   type="button"
                   className="btn-primary"
-                  disabled={sectionLoading}
+                  disabled={!pathReadiness.ready || sectionLoading}
                   onClick={launchPageFill}
                 >
-                  Autofill on live page
+                  {sectionLoading
+                    ? "Drafting section…"
+                    : "Autofill on live page"}
                 </button>
               </div>
             )}
