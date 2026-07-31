@@ -1,4 +1,5 @@
 import type { Internship, MatchResult, StudentProfile } from "./types";
+import { daysUntilDeadline, isDeadlinePassed } from "./deadline";
 
 const HS_SIGNALS = [
   "high school",
@@ -24,13 +25,6 @@ function tokenize(value: string): string[] {
 
 function unique(tokens: string[]): string[] {
   return [...new Set(tokens)];
-}
-
-function daysUntil(deadline: string | null): number | null {
-  if (!deadline) return null;
-  const ms = Date.parse(deadline) - Date.now();
-  if (Number.isNaN(ms)) return null;
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
 }
 
 export function scoreInternship(
@@ -100,12 +94,11 @@ export function scoreInternship(
     reasons.push("Explicitly open to high school students");
   }
 
-  const days = daysUntil(internship.deadline);
+  const days = daysUntilDeadline(internship.deadline);
   if (days !== null) {
     if (days < 0) {
-      score -= 40;
-      // Avoid "N days" wording — timezone differences caused React hydration #418.
-      reasons.push("Deadline may have passed — verify on site");
+      score = 0;
+      reasons.push("Deadline has passed");
     } else if (days <= 21) {
       score += 12;
       reasons.push("Deadline coming up soon");
@@ -134,8 +127,13 @@ export function scoreInternship(
 export function rankInternships(
   internships: Internship[],
   profile: StudentProfile,
+  options?: { includePastDeadlines?: boolean },
 ): MatchResult[] {
+  const includePast = Boolean(options?.includePastDeadlines);
   return internships
+    .filter(
+      (internship) => includePast || !isDeadlinePassed(internship.deadline),
+    )
     .map((internship) => scoreInternship(internship, profile))
     .sort((a, b) => b.score - a.score);
 }

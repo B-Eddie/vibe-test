@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { InternshipCard } from "@/components/InternshipCard";
+import { daysUntilDeadline, isDeadlinePassed } from "@/lib/deadline";
 import { rankInternships } from "@/lib/match";
 import { cacheListings } from "@/lib/listings-cache";
 import { loadProfile, upsertTrackerStatus } from "@/lib/storage";
@@ -54,31 +55,39 @@ export function InternshipBrowser({
       .finally(() => setLoadingLive(false));
   }, [initialListings]);
 
+  const expiredCount = useMemo(
+    () => listings.filter((item) => isDeadlinePassed(item.deadline)).length,
+    [listings],
+  );
+
+  const openListings = useMemo(
+    () => listings.filter((item) => !isDeadlinePassed(item.deadline)),
+    [listings],
+  );
+
   const tags = useMemo(() => {
     const set = new Set<string>();
-    for (const item of listings) {
+    for (const item of openListings) {
       for (const value of item.tags) set.add(value);
     }
     return [...set].sort();
-  }, [listings]);
+  }, [openListings]);
 
   const matches = useMemo(() => {
-    const ranked = rankInternships(listings, profile).filter((match) => {
+    const ranked = rankInternships(openListings, profile).filter((match) => {
       const { internship } = match;
       if (remoteOnly && !internship.remote) return false;
       if (tag !== "all" && !internship.tags.includes(tag)) return false;
-      if (deadlineDays !== "any" && internship.deadline) {
-        const days =
-          (Date.parse(internship.deadline) - Date.now()) /
-          (1000 * 60 * 60 * 24);
-        if (days < 0 || days > Number(deadlineDays)) return false;
-      } else if (deadlineDays !== "any" && !internship.deadline) {
-        return false;
+      if (deadlineDays !== "any") {
+        const days = daysUntilDeadline(internship.deadline);
+        if (days === null || days < 0 || days > Number(deadlineDays)) {
+          return false;
+        }
       }
       return true;
     });
     return typeof limit === "number" ? ranked.slice(0, limit) : ranked;
-  }, [listings, profile, remoteOnly, tag, deadlineDays, limit]);
+  }, [openListings, profile, remoteOnly, tag, deadlineDays, limit]);
 
   return (
     <div className="browser">
@@ -111,7 +120,7 @@ export function InternshipBrowser({
                 setDeadlineDays(e.target.value as "any" | "30" | "60")
               }
             >
-              <option value="any">Any</option>
+              <option value="any">Open deadlines</option>
               <option value="30">Next 30 days</option>
               <option value="60">Next 60 days</option>
             </select>
@@ -125,6 +134,9 @@ export function InternshipBrowser({
           : liveSearch
             ? "Showing curated programs plus live Gemini search results."
             : "Showing curated programs. Add GEMINI_API_KEY for live AI search."}
+        {expiredCount > 0
+          ? ` Hidden ${expiredCount} listing${expiredCount === 1 ? "" : "s"} with a passed deadline.`
+          : " Past deadlines are hidden automatically."}
       </p>
 
       <div className="internship-list">
@@ -148,7 +160,8 @@ export function InternshipBrowser({
         ))}
         {!matches.length ? (
           <p className="empty-state">
-            No matches yet. Add interests on your profile or widen filters.
+            No open matches yet. Add interests on your profile, widen filters, or
+            check back when new deadlines are posted.
           </p>
         ) : null}
       </div>
