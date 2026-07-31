@@ -6,6 +6,7 @@ import type {
   ParsedApplication,
 } from "./types";
 import { BROWSER_UA, normalizeApplicationUrl } from "./fetch-page";
+import { looksLikeSubmitOption } from "./form-path";
 
 const TYPE_MAP: Record<number, FormQuestionType> = {
   0: "short",
@@ -163,13 +164,14 @@ export function readOptionsAndBranches(
     } else if (typeof candidate === "string" && /^-?\d+$/.test(candidate)) {
       navRaw = Number(candidate);
     }
-    // No go-to on this option → follow the section's default next page.
-    if (navRaw === null) continue;
-    // -1 / 0 at option[2] means submit / end form.
-    if (navRaw <= 0) {
+
+    // Label-based submit always ends the form, even when Google omits nav.
+    if (looksLikeSubmitOption(label) || (navRaw !== null && navRaw <= 0)) {
       branches.push({ option: label, nextSectionIndex: null });
       continue;
     }
+    // No go-to on this option → follow the section's default next page.
+    if (navRaw === null) continue;
     const nextIndex = pageIdToIndex.get(navRaw);
     if (typeof nextIndex !== "number") {
       // Unknown page id — omit the branch so defaultNext can apply via backfill.
