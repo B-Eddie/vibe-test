@@ -372,11 +372,7 @@ export function ApplyWorkspace() {
                 {geminiError ? (
                   <p className="error-note" style={{ marginTop: "0.75rem" }}>
                     Gemini did not fill this form ({geminiError}). Showing
-<<<<<<< HEAD
-                    local fallback answers — edit before submitting.
-=======
                     local draft answers — edit before submitting.
->>>>>>> origin/cursor/always-draft-fill-0c80
                     {/not set|API key|UNAUTHENTICATED|PERMISSION/i.test(
                       geminiError,
                     )
