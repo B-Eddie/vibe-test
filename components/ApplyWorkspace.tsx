@@ -372,9 +372,14 @@ export function ApplyWorkspace() {
                 {geminiError ? (
                   <p className="error-note" style={{ marginTop: "0.75rem" }}>
                     Gemini did not fill this form ({geminiError}). Showing
-                    local fallback answers — edit before submitting. Confirm
-                    GEMINI_API_KEY is set for Production on Vercel, then
-                    redeploy.
+                    local draft answers — edit before submitting.
+                    {/not set|API key|UNAUTHENTICATED|PERMISSION/i.test(
+                      geminiError,
+                    )
+                      ? " Confirm GEMINI_API_KEY is set for Production on Vercel, then redeploy."
+                      : /quota|rate.?limit|exceeded|billing/i.test(geminiError)
+                        ? " Try again shortly, or check your Gemini plan/billing and model quota."
+                        : ""}
                   </p>
                 ) : null}
               </div>
@@ -394,7 +399,7 @@ export function ApplyWorkspace() {
                   ? `${manualCount} file upload(s) stay manual. `
                   : ""}
                 {lowConfidence > 0
-                  ? `${lowConfidence} answer(s) are low-confidence — edit them before filling.`
+                  ? `${lowConfidence} answer(s) are best-effort drafts (low confidence) — edit them before filling.`
                   : ""}
               </p>
             )}
