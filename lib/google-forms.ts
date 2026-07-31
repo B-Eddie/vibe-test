@@ -147,13 +147,19 @@ function readOptionsAndBranches(
     if (!label) continue;
     options.push(label);
 
-    // Google stores go-to-section on option[2] (and occasionally option[3]).
-    const navRaw =
-      typeof row[2] === "number"
-        ? row[2]
-        : typeof row[3] === "number"
-          ? row[3]
-          : null;
+    // Google may store go-to-section on several indexes depending on form version.
+    let navRaw: number | null = null;
+    for (const idx of [2, 3, 4, 5]) {
+      const candidate = row[idx];
+      if (typeof candidate === "number") {
+        navRaw = candidate;
+        break;
+      }
+      if (typeof candidate === "string" && /^-?\d+$/.test(candidate)) {
+        navRaw = Number(candidate);
+        break;
+      }
+    }
     if (navRaw === null) continue;
     if (navRaw <= 0) {
       branches.push({ option: label, nextSectionIndex: null });
@@ -162,7 +168,7 @@ function readOptionsAndBranches(
     const nextIndex = pageIdToIndex.get(navRaw);
     branches.push({
       option: label,
-      nextSectionIndex: nextIndex ?? null,
+      nextSectionIndex: typeof nextIndex === "number" ? nextIndex : null,
     });
   }
 

@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import {
   answersToFillPayloadWithOptions,
   buildBookmarklet,
   buildConsoleScript,
 } from "@/lib/fill-script";
 import {
+  canChangeFormPath,
   ensureApplicationSections,
   hasSectionBranching,
   mergeAnswerLists,
+  nextSectionAfterAnswer,
   orderAnswersForPath,
   pruneAnswersAfterQuestion,
   questionsMissingAnswers,
@@ -29,6 +30,7 @@ import {
   type ParsedApplication,
   type StudentProfile,
 } from "@/lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Step = "link" | "review" | "fill" | "done";
 
@@ -165,6 +167,13 @@ export function ApplyWorkspace() {
   const [sectionLoadingLabel, setSectionLoadingLabel] = useState(
     "Drafting the next section…",
   );
+  const [loadingAfterEntryId, setLoadingAfterEntryId] = useState<string | null>(
+    null,
+  );
+  const [pendingSectionIndex, setPendingSectionIndex] = useState<number | null>(
+    null,
+  );
+  const branchFillGen = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
@@ -396,9 +405,9 @@ export function ApplyWorkspace() {
     if (!normalizedApp) return;
 
     const question = normalizedApp.questions.find((q) => q.entryId === entryId);
-    const isBranchPoint = Boolean(question?.optionBranches?.length);
+    const triggersPath = canChangeFormPath(normalizedApp, question);
 
-    if (!isBranchPoint) {
+    if (!triggersPath) {
       setAnswers((current) =>
         current.map((answer) =>
           answer.entryId === entryId ? { ...answer, value } : answer,
@@ -407,39 +416,66 @@ export function ApplyWorkspace() {
       return;
     }
 
+    // Ignore no-op reselection of the same option.
+    const previous = answers.find((answer) => answer.entryId === entryId)?.value;
+    if (previous === value) return;
+
+    const seeded = answers.map((answer) =>
+      answer.entryId === entryId ? { ...answer, value } : answer,
+    );
     const nextAnswers = pruneAnswersAfterQuestion(
       normalizedApp,
-      answers.map((answer) =>
-        answer.entryId === entryId ? { ...answer, value } : answer,
-      ),
+      seeded,
       entryId,
     ).map((answer) =>
       answer.entryId === entryId ? { ...answer, value } : answer,
     );
 
+    const nextSection = nextSectionAfterAnswer(normalizedApp, entryId, value);
+    const nextSectionMeta =
+      nextSection !== null
+        ? normalizedApp.sections?.find((section) => section.index === nextSection)
+        : null;
+
+    const gen = ++branchFillGen.current;
     setAnswers(orderAnswersForPath(normalizedApp, nextAnswers));
     setConfirmed(false);
-    setSectionLoading(true);
-    setSectionLoadingLabel("Updating path and drafting the new section…");
     setError(null);
+    setStatusNote(null);
+    setLoadingAfterEntryId(entryId);
+    setPendingSectionIndex(nextSection);
+    setSectionLoading(true);
+    setSectionLoadingLabel(
+      nextSectionMeta
+        ? `Drafting “${nextSectionMeta.title}”…`
+        : "Drafting the next section…",
+    );
 
     try {
       const filled = await fillAlongPath(normalizedApp, nextAnswers);
+      if (gen !== branchFillGen.current) return;
       setAnswers(filled.answers);
       setProvider(filled.provider ?? provider);
       setGeminiError(filled.geminiError ?? null);
       setGeminiModel(filled.geminiModel ?? null);
       setStatusNote(
-        "Path updated — new section answers were drafted from your background.",
+        nextSectionMeta
+          ? `Updated path — drafted “${nextSectionMeta.title}” from your background.`
+          : "Path updated — later sections were refreshed from your background.",
       );
     } catch (err) {
+      if (gen !== branchFillGen.current) return;
       setError(
         err instanceof Error
           ? err.message
           : "Could not draft the new section. Try again.",
       );
     } finally {
-      setSectionLoading(false);
+      if (gen === branchFillGen.current) {
+        setSectionLoading(false);
+        setLoadingAfterEntryId(null);
+        setPendingSectionIndex(null);
+      }
     }
   }
 
@@ -699,7 +735,15 @@ export function ApplyWorkspace() {
                   );
                   return (question?.sectionIndex ?? 0) === sectionIndex;
                 });
-                if (!sectionAnswers.length) return null;
+                const waitingForThisSection =
+                  sectionLoading &&
+                  pendingSectionIndex === sectionIndex &&
+                  !sectionAnswers.length;
+
+                if (!sectionAnswers.length && !waitingForThisSection) {
+                  return null;
+                }
+
                 return (
                   <div key={`section-${sectionIndex}`} className="apply-section-block">
                     {branching || (normalizedApp.sections?.length || 0) > 1 ? (
@@ -712,41 +756,98 @@ export function ApplyWorkspace() {
                       const question = normalizedApp.questions.find(
                         (item) => item.entryId === answer.entryId,
                       );
+                      const showInlineLoader =
+                        sectionLoading && loadingAfterEntryId === answer.entryId;
                       return (
-                        <div key={answer.entryId} className="answer-card">
-                          <div className="answer-card-head">
-                            <strong>{answer.title}</strong>
-                            <span className={`confidence ${answer.confidence}`}>
-                              {answer.manualOnly
-                                ? "manual"
-                                : question?.optionBranches?.length
-                                  ? `${answer.confidence} · branching`
-                                  : question?.type &&
-                                      [
-                                        "multiple_choice",
-                                        "dropdown",
-                                        "checkboxes",
-                                        "scale",
-                                      ].includes(question.type)
-                                    ? `${answer.confidence} · ${question.type.replace("_", " ")}`
-                                    : answer.confidence}
-                            </span>
+                        <div key={answer.entryId} className="answer-card-stack">
+                          <div className="answer-card">
+                            <div className="answer-card-head">
+                              <strong>{answer.title}</strong>
+                              <span className={`confidence ${answer.confidence}`}>
+                                {answer.manualOnly
+                                  ? "manual"
+                                  : canChangeFormPath(normalizedApp, question)
+                                    ? `${answer.confidence} · branching`
+                                    : question?.type &&
+                                        [
+                                          "multiple_choice",
+                                          "dropdown",
+                                          "checkboxes",
+                                          "scale",
+                                        ].includes(question.type)
+                                      ? `${answer.confidence} · ${question.type.replace("_", " ")}`
+                                      : answer.confidence}
+                              </span>
+                            </div>
+                            <p className="rationale">{answer.rationale}</p>
+                            <AnswerEditor
+                              answer={answer}
+                              question={question}
+                              onChange={(nextValue) =>
+                                void updateAnswer(answer.entryId, nextValue)
+                              }
+                            />
                           </div>
-                          <p className="rationale">{answer.rationale}</p>
-                          <AnswerEditor
-                            answer={answer}
-                            question={question}
-                            onChange={(value) =>
-                              void updateAnswer(answer.entryId, value)
-                            }
-                          />
+                          {showInlineLoader ? (
+                            <div
+                              className="section-inline-loading"
+                              role="status"
+                              aria-live="polite"
+                            >
+                              <div
+                                className="section-loading-spinner"
+                                aria-hidden
+                              />
+                              <div>
+                                <p>{sectionLoadingLabel}</p>
+                                <span>
+                                  New section questions will appear below when
+                                  ready.
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}
+                    {waitingForThisSection ? (
+                      <div className="section-inline-loading" role="status">
+                        <div className="section-loading-spinner" aria-hidden />
+                        <div>
+                          <p>{sectionLoadingLabel}</p>
+                          <span>Preparing AI drafts for this section…</span>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
+
+              {sectionLoading &&
+              pendingSectionIndex !== null &&
+              !formPath.sectionIndexes.includes(pendingSectionIndex) ? (
+                <div className="apply-section-block section-pending-block">
+                  <div className="apply-section-heading">
+                    <h4>
+                      {normalizedApp.sections?.find(
+                        (item) => item.index === pendingSectionIndex,
+                      )?.title || `Section ${pendingSectionIndex + 1}`}
+                    </h4>
+                  </div>
+                  <div className="section-inline-loading" role="status">
+                    <div className="section-loading-spinner" aria-hidden />
+                    <div>
+                      <p>{sectionLoadingLabel}</p>
+                      <span>Preparing AI drafts for this section…</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
+
+            {statusNote && step === "review" ? (
+              <p className="provider-note">{statusNote}</p>
+            ) : null}
             {isGoogle ? (
               <>
                 <label className="checkbox-label confirm-row">
@@ -910,7 +1011,7 @@ export function ApplyWorkspace() {
         {error ? <p className="error-note">{error}</p> : null}
       </section>
 
-      {sectionLoading ? (
+      {loading ? (
         <div className="section-loading-overlay" role="status" aria-live="polite">
           <div className="section-loading-card">
             <div className="section-loading-spinner" aria-hidden />
