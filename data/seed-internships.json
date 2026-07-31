@@ -6,8 +6,13 @@
     "url": "https://buildyourfuture.withgoogle.com/programs/computer-science-summer-institute",
     "location": "Multiple US campuses / virtual options",
     "remote": true,
-    "deadline": "2026-03-15",
-    "tags": ["computer-science", "coding", "summer", "high-school"],
+    "deadline": "2027-03-15",
+    "tags": [
+      "computer-science",
+      "coding",
+      "summer",
+      "high-school"
+    ],
     "description": "Three-week intensive introduction to computer science for rising high school seniors from underrepresented backgrounds. Project-based curriculum covering web development, algorithms, and collaboration.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -19,8 +24,13 @@
     "url": "https://www.csr.utexas.edu/sees/",
     "location": "Austin, TX + remote research",
     "remote": true,
-    "deadline": "2026-02-22",
-    "tags": ["space", "earth-science", "research", "high-school"],
+    "deadline": "2027-02-22",
+    "tags": [
+      "space",
+      "earth-science",
+      "research",
+      "high-school"
+    ],
     "description": "National high school internship pairing remote Earth science research with an on-site summer experience at UT Austin. Students analyze NASA satellite data and present findings.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -33,7 +43,13 @@
     "location": "Local community nonprofits across the US",
     "remote": false,
     "deadline": "2026-01-16",
-    "tags": ["leadership", "nonprofit", "community", "paid", "high-school"],
+    "tags": [
+      "leadership",
+      "nonprofit",
+      "community",
+      "paid",
+      "high-school"
+    ],
     "description": "Paid eight-week summer internship for rising high school juniors and seniors placed at local nonprofits, plus a leadership summit in Washington, D.C.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -45,8 +61,13 @@
     "url": "https://careers.microsoft.com/v2/global/en/programs/high-school.html",
     "location": "Redmond, WA and select sites",
     "remote": false,
-    "deadline": "2026-01-31",
-    "tags": ["computer-science", "engineering", "paid", "high-school"],
+    "deadline": "2027-01-31",
+    "tags": [
+      "computer-science",
+      "engineering",
+      "paid",
+      "high-school"
+    ],
     "description": "Paid summer internship for rising high school seniors interested in software engineering, product design, and technical program management at Microsoft.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -58,8 +79,13 @@
     "url": "https://www.training.nih.gov/research-training/hs/hs-sip/",
     "location": "Bethesda, MD and other NIH campuses",
     "remote": false,
-    "deadline": "2026-02-01",
-    "tags": ["medicine", "biology", "research", "high-school"],
+    "deadline": "2027-02-01",
+    "tags": [
+      "medicine",
+      "biology",
+      "research",
+      "high-school"
+    ],
     "description": "Full-time summer research internships for high school students in biomedical laboratories across NIH institutes. Strong fit for students exploring medicine or life sciences.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -71,8 +97,12 @@
     "url": "https://www.metacareers.com/careerprograms/pathways",
     "location": "Menlo Park, CA / select US offices",
     "remote": false,
-    "deadline": "2026-02-10",
-    "tags": ["computer-science", "engineering", "high-school"],
+    "deadline": "2027-02-10",
+    "tags": [
+      "computer-science",
+      "engineering",
+      "high-school"
+    ],
     "description": "Hands-on engineering exposure program for high school students focusing on coding fundamentals, product thinking, and mentorship from Meta engineers.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -84,8 +114,14 @@
     "url": "https://www.smithsonianofi.com/internship-opportunities/",
     "location": "Washington, D.C. area museums",
     "remote": false,
-    "deadline": "2026-03-01",
-    "tags": ["history", "museum", "arts", "research", "high-school"],
+    "deadline": "2027-03-01",
+    "tags": [
+      "history",
+      "museum",
+      "arts",
+      "research",
+      "high-school"
+    ],
     "description": "Museum and research internships for high school students across Smithsonian museums and research centers, spanning history, art, culture, and natural science.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -97,8 +133,14 @@
     "url": "https://www.janestreet.com/join-jane-street/programs-and-events/",
     "location": "New York, NY",
     "remote": false,
-    "deadline": "2026-01-20",
-    "tags": ["math", "programming", "finance", "paid", "high-school"],
+    "deadline": "2027-01-20",
+    "tags": [
+      "math",
+      "programming",
+      "finance",
+      "paid",
+      "high-school"
+    ],
     "description": "Selective summer academy for high school students combining functional programming, probability, and problem solving with traders and engineers.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -110,8 +152,13 @@
     "url": "https://stanford.edu/",
     "location": "Stanford, CA / remote research pods",
     "remote": true,
-    "deadline": "2026-02-28",
-    "tags": ["research", "engineering", "design", "high-school"],
+    "deadline": "2027-02-28",
+    "tags": [
+      "research",
+      "engineering",
+      "design",
+      "high-school"
+    ],
     "description": "Research-focused summer internship pairing high school students with Stanford labs across science, humanities, engineering, and design topics.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -123,9 +170,14 @@
     "url": "https://www.aamc.org/career-planning-resources/",
     "location": "Local / hybrid",
     "remote": false,
-    "deadline": "2026-04-01",
-    "tags": ["medicine", "healthcare", "volunteer", "high-school"],
-    "description": "Hospital-affiliated program for grades 10–12 combining supervised clinical shadowing, public health projects, and mentorship from residents and research staff.",
+    "deadline": "2027-04-01",
+    "tags": [
+      "medicine",
+      "healthcare",
+      "volunteer",
+      "high-school"
+    ],
+    "description": "Hospital-affiliated program for grades 10\u201312 combining supervised clinical shadowing, public health projects, and mentorship from residents and research staff.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
   },
@@ -136,8 +188,13 @@
     "url": "https://codenation.org/",
     "location": "New York, Chicago, and partner cities",
     "remote": false,
-    "deadline": "2026-03-20",
-    "tags": ["computer-science", "web-development", "paid", "high-school"],
+    "deadline": "2027-03-20",
+    "tags": [
+      "computer-science",
+      "web-development",
+      "paid",
+      "high-school"
+    ],
     "description": "Paid tech internships for high school students who complete Code Nation programming tracks, placed with industry partners on real web projects.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
@@ -149,8 +206,13 @@
     "url": "https://www.noaa.gov/education/opportunities",
     "location": "Various US labs and field sites",
     "remote": false,
-    "deadline": "2026-02-15",
-    "tags": ["earth-science", "climate", "research", "high-school"],
+    "deadline": "2027-02-15",
+    "tags": [
+      "earth-science",
+      "climate",
+      "research",
+      "high-school"
+    ],
     "description": "NOAA education pathways and high school research experiences focused on climate, oceans, weather, and environmental monitoring.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"

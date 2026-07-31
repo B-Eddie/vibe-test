@@ -1,6 +1,7 @@
 import type { Internship } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
+import { isDeadlinePassed } from "./deadline";
 
 /**
  * Prefer current Gemini Flash models. gemini-2.0-flash / 1.5 are shut down
@@ -233,7 +234,7 @@ export async function searchInternshipsWithGemini(options: {
   const result = await geminiGenerate({
     search: true,
     system:
-      "You find real, currently open or regularly recurring high school internship and pre-college programs. Prefer official program pages. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
+      "You find real, currently open high school internship and pre-college programs. Prefer official program pages. Skip programs whose application deadline has already passed. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
     user: query,
   });
 
@@ -261,6 +262,7 @@ export async function searchInternshipsWithGemini(options: {
       } catch {
         return null;
       }
+      if (isDeadlinePassed(row.deadline || null)) return null;
       return normalizeListing({
         title: row.title,
         org: row.org || "Unknown org",

@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { isDeadlinePassed } from "@/lib/deadline";
 import type { MatchResult } from "@/lib/types";
 
 function formatDeadline(deadline: string | null): string {
   if (!deadline) return "Rolling / see posting";
+  if (isDeadlinePassed(deadline)) return "Deadline passed";
   // Parse as UTC date-only when possible to avoid SSR/client timezone skew.
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(deadline);
   if (match) {
@@ -22,16 +24,16 @@ function formatDeadline(deadline: string | null): string {
     ];
     const month = months[Number(match[2]) - 1];
     if (!month) return deadline;
-    return `${month} ${Number(match[3])}, ${match[1]}`;
+    return `Due ${month} ${Number(match[3])}, ${match[1]}`;
   }
   const date = new Date(deadline);
   if (Number.isNaN(date.getTime())) return deadline;
-  return date.toLocaleDateString("en-US", {
+  return `Due ${date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
-  });
+  })}`;
 }
 
 export function InternshipCard({ match }: { match: MatchResult }) {

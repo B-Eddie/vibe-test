@@ -9,8 +9,8 @@ export default function InternshipsPage() {
       <header className="page-header">
         <h1>Find opportunities</h1>
         <p>
-          Curated high school programs plus on-demand AI search. Apply opens the
-          same desk used for any Google Form or program link.
+          Curated high school programs plus on-demand AI search. Listings with
+          passed deadlines are filtered out automatically.
         </p>
       </header>
       <InternshipBrowser initialListings={listings} />
