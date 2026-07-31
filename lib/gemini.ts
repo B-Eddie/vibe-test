@@ -2,15 +2,21 @@ import type { Internship } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
 
-/** Prefer flash models that work with the current Gemini Developer API. */
+/**
+ * Prefer current Gemini Flash models. gemini-2.0-flash / 1.5 are shut down
+ * or free-tier-unavailable (limit: 0) on many keys — skip them.
+ * GEMINI_MODEL overrides the first choice when set.
+ */
 const DEFAULT_MODELS = [
   process.env.GEMINI_MODEL?.trim(),
+  "gemini-flash-latest",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
+  "gemini-2.5-flash-lite",
 ].filter((value): value is string => Boolean(value));
 
-export const GEMINI_MODEL = DEFAULT_MODELS[0] || "gemini-2.5-flash";
+export const GEMINI_MODEL = DEFAULT_MODELS[0] || "gemini-flash-latest";
 
 export function getApiKey(): string | undefined {
   const key =
@@ -140,6 +146,7 @@ export async function geminiGenerate(options: {
   }
 
   let lastError: string | null = null;
+  let lastModel: string | null = null;
   const tried = new Set<string>();
 
   for (const model of DEFAULT_MODELS) {
@@ -149,30 +156,36 @@ export async function geminiGenerate(options: {
       const result = await callGeminiModel(model, apiKey, options);
       if (result.text) return result;
       lastError = result.error;
-      // Retry next model on not-found / unsupported model errors
+      lastModel = result.model;
+      // Bad key / auth — no point trying other models
       if (
         lastError &&
-        /not found|not supported|invalid model|NOT_FOUND/i.test(lastError)
-      ) {
-        continue;
-      }
-      // For other errors (bad key, quota), don't keep retrying forever
-      if (
-        lastError &&
-        /API key|PERMISSION|UNAUTHENTICATED|quota|billing/i.test(lastError)
+        /API key|PERMISSION_DENIED|UNAUTHENTICATED|invalid.?api.?key/i.test(
+          lastError,
+        )
       ) {
         return result;
+      }
+      // Model missing, unsupported, or per-model quota — try the next one
+      if (
+        lastError &&
+        /not found|not supported|invalid model|NOT_FOUND|quota|rate.?limit|RESOURCE_EXHAUSTED|billing|exceeded/i.test(
+          lastError,
+        )
+      ) {
+        continue;
       }
     } catch (error) {
       lastError =
         error instanceof Error ? error.message : "Gemini request failed";
+      lastModel = model;
     }
   }
 
   return {
     text: null,
     error: lastError || "Gemini request failed",
-    model: null,
+    model: lastModel,
   };
 }
 
