@@ -69,9 +69,9 @@ export function ProfileForm() {
           <span style={{ width: `${completeness}%` }} />
         </div>
         <p>
-          Background strength: <strong>{completeness}%</strong> — richer
-          profiles produce better auto-fills.{" "}
-          <Link href="/apply">Go apply →</Link>
+          <strong>{completeness}%</strong>
+          {" · "}
+          <Link href="/apply">Apply →</Link>
         </p>
       </div>
 
@@ -143,7 +143,7 @@ export function ProfileForm() {
       </div>
 
       <label>
-        Interests (comma-separated)
+        Interests
         <input
           value={interestsText}
           onChange={(e) => setInterestsText(e.target.value)}
@@ -152,7 +152,7 @@ export function ProfileForm() {
       </label>
 
       <label>
-        Skills (comma-separated)
+        Skills
         <input
           value={skillsText}
           onChange={(e) => setSkillsText(e.target.value)}
@@ -161,39 +161,39 @@ export function ProfileForm() {
       </label>
 
       <label>
-        Activities / clubs
+        Activities
         <textarea
-          rows={3}
+          rows={2}
           value={profile.activities}
           onChange={(e) =>
             setProfile({ ...profile, activities: e.target.value })
           }
-          placeholder="Robotics captain, debate, hospital volunteer…"
+          placeholder="Clubs, teams, volunteering"
         />
       </label>
 
       <label>
-        Awards / highlights
+        Awards
         <textarea
-          rows={3}
+          rows={2}
           value={profile.awards}
           onChange={(e) => setProfile({ ...profile, awards: e.target.value })}
-          placeholder="Hackathon finalist, science fair, etc."
+          placeholder="Highlights"
         />
       </label>
 
       <label>
-        Links (portfolio, GitHub, LinkedIn)
+        Links
         <input
           value={profile.links}
           onChange={(e) => setProfile({ ...profile, links: e.target.value })}
-          placeholder="https://github.com/you, https://…"
+          placeholder="Portfolio, GitHub, LinkedIn"
         />
       </label>
 
       <div className="form-grid">
         <label>
-          Parent / guardian name
+          Guardian name
           <input
             value={profile.parentName}
             onChange={(e) =>
@@ -202,7 +202,7 @@ export function ProfileForm() {
           />
         </label>
         <label>
-          Parent / guardian email
+          Guardian email
           <input
             type="email"
             value={profile.parentEmail}
@@ -214,46 +214,42 @@ export function ProfileForm() {
       </div>
 
       <label>
-        Short bio
+        Bio
         <textarea
-          rows={4}
+          rows={3}
           value={profile.bio}
           onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-          placeholder="A few sentences about what you care about and how you work."
+          placeholder="A few sentences about you"
         />
       </label>
 
       <label>
-        Résumé text (paste)
+        Résumé
         <textarea
-          rows={8}
+          rows={6}
           value={profile.resumeText}
           onChange={(e) =>
             setProfile({ ...profile, resumeText: e.target.value })
           }
-          placeholder="Paste bullet points from your résumé for better drafts and form fills."
+          placeholder="Paste résumé bullets"
         />
       </label>
 
       <label>
-        Writing style (paste)
+        Writing samples
         <textarea
-          rows={8}
+          rows={5}
           value={profile.writingSamples}
           onChange={(e) =>
             setProfile({ ...profile, writingSamples: e.target.value })
           }
-          placeholder="Paste 1–3 things you’ve written — school essays, emails, or application answers. InternHarbor will match your voice when drafting."
+          placeholder="Paste writing that sounds like you"
         />
       </label>
 
       <div className="custom-facts">
         <div className="section-heading">
-          <h2>Reusable answers</h2>
-          <p>
-            Add facts you reuse often (GPA, T-shirt size, availability, essay
-            snippets). The apply desk will pull from these.
-          </p>
+          <h2>Facts</h2>
         </div>
         {profile.customFacts.map((fact) => (
           <div key={fact.id} className="fact-row">
@@ -299,9 +295,9 @@ export function ProfileForm() {
 
       <div className="form-actions">
         <button type="submit" className="btn-primary">
-          Save background
+          Save
         </button>
-        {saved ? <span className="save-pulse">Saved locally</span> : null}
+        {saved ? <span className="save-pulse">Saved</span> : null}
       </div>
     </form>
   );

@@ -17,9 +17,8 @@ const body = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "InternHarbor — Find & Apply",
-  description:
-    "Find high school internships and apply from one desk using your background — including Google Forms.",
+  title: "InternHarbor",
+  description: "Find HS internships and apply from one desk.",
 };
 
 export default function RootLayout({

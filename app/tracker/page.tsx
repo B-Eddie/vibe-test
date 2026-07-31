@@ -8,10 +8,6 @@ export default function TrackerPage() {
     <main>
       <header className="page-header">
         <h1>Tracker</h1>
-        <p>
-          Follow every opportunity from saved → drafted → ready → applied.
-          Google Form submissions land in Applied automatically.
-        </p>
       </header>
       <TrackerBoard listings={listings} />
     </main>

@@ -62,11 +62,7 @@ export function DraftPanel({ internship, profile }: Props) {
   return (
     <section className="draft-panel">
       <div className="section-heading">
-        <h2>Quick draft</h2>
-        <p>
-          Optional cover email / why-me notes. For Google Forms and full
-          applications, use Apply with InternHarbor above.
-        </p>
+        <h2>Draft</h2>
       </div>
 
       <div className="draft-actions">
@@ -76,20 +72,19 @@ export function DraftPanel({ internship, profile }: Props) {
           onClick={generate}
           disabled={loading}
         >
-          {loading ? "Drafting…" : "Generate draft"}
+          {loading ? "Drafting…" : "Generate"}
         </button>
         <a
           className="btn-secondary"
           href={`/apply?url=${encodeURIComponent(internship.url)}&title=${encodeURIComponent(internship.title)}&from=${encodeURIComponent(internship.id)}`}
         >
-          Full apply desk
+          Apply
         </a>
       </div>
 
       {provider ? (
         <p className="provider-note">
-          Draft source:{" "}
-          {provider === "gemini" ? "Gemini" : "local fallback"}
+          {provider === "gemini" ? "Gemini" : "Local"}
         </p>
       ) : null}
       {error ? <p className="error-note">{error}</p> : null}

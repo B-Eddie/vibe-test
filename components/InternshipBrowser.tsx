@@ -128,16 +128,18 @@ export function InternshipBrowser({
         </div>
       ) : null}
 
-      <p className="provider-note">
-        {loadingLive
-          ? "Searching live internships with Gemini…"
-          : liveSearch
-            ? "Showing curated programs plus live Gemini search results."
-            : "Showing curated programs. Add GEMINI_API_KEY for live AI search."}
-        {expiredCount > 0
-          ? ` Hidden ${expiredCount} listing${expiredCount === 1 ? "" : "s"} with a passed deadline.`
-          : " Past deadlines are hidden automatically."}
-      </p>
+      {loadingLive || liveSearch || expiredCount > 0 ? (
+        <p className="provider-note">
+          {loadingLive
+            ? "Searching…"
+            : liveSearch
+              ? "Live results included."
+              : null}
+          {expiredCount > 0
+            ? `${loadingLive || liveSearch ? " " : ""}${expiredCount} closed hidden.`
+            : null}
+        </p>
+      ) : null}
 
       <div className="internship-list">
         {matches.map((match) => (
@@ -154,15 +156,12 @@ export function InternshipBrowser({
                 })
               }
             >
-              Save to tracker
+              Save
             </button>
           </div>
         ))}
         {!matches.length ? (
-          <p className="empty-state">
-            No open matches yet. Add interests on your profile, widen filters, or
-            check back when new deadlines are posted.
-          </p>
+          <p className="empty-state">No open matches.</p>
         ) : null}
       </div>
     </div>
