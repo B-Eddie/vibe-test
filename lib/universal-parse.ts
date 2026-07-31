@@ -5,6 +5,7 @@ import {
   classifyApplicationUrl,
   parseGoogleForm,
 } from "./google-forms";
+import { isTallyUrl, parseTallyForm, parseTallyFormFromHtml } from "./tally";
 import type {
   FormQuestion,
   FormQuestionType,
@@ -85,6 +86,7 @@ function detectPlatform(url: string, html: string): string {
   if (host.includes("docs.google.com") && url.includes("/forms/"))
     return "Google Forms";
   if (host.includes("forms.gle")) return "Google Forms";
+  if (host.includes("tally.so") || blob.includes("tally.so")) return "Tally";
   if (blob.includes("greenhouse") || host.includes("greenhouse"))
     return "Greenhouse";
   if (blob.includes("lever.co") || host.includes("lever")) return "Lever";
@@ -509,9 +511,28 @@ export async function parseAnyApplication(
     }
   }
 
+  if (isTallyUrl(url)) {
+    const parsed = await parseTallyForm(url);
+    return {
+      ...parsed,
+      questions: withMatchHints(parsed.questions),
+    };
+  }
+
   const fetched = await fetchApplicationPage(url);
   const finalUrl = fetched.finalUrl || url;
   const platform = detectPlatform(finalUrl, fetched.html);
+
+  if (isTallyUrl(finalUrl) || platform === "Tally") {
+    const fromHtml = parseTallyFormFromHtml(fetched.html, finalUrl);
+    if (fromHtml?.questions.length) {
+      return {
+        ...fromHtml,
+        questions: withMatchHints(fromHtml.questions),
+      };
+    }
+  }
+
   const extracted = extractHtmlQuestions(fetched.html, finalUrl);
 
   let questions = extracted.questions;

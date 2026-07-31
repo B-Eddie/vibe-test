@@ -833,13 +833,25 @@ textarea {
   margin: 0.4rem 0 0.2rem;
   font-family: var(--font-display), sans-serif;
   letter-spacing: -0.03em;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
+  font-weight: 650;
 }
 
 .apply-section-heading p {
   margin: 0 0 0.35rem;
   color: var(--ink-soft);
   font-size: 0.92rem;
+}
+
+.answer-card-head strong {
+  white-space: normal;
+  line-height: 1.35;
+  font-size: 0.98rem;
+}
+
+.confidence.unlock {
+  background: rgba(13, 115, 112, 0.12);
+  color: #0b5f5d;
 }
 
 .answer-card-stack {

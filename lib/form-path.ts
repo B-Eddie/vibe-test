@@ -2,6 +2,7 @@ import type {
   FilledAnswer,
   FormOptionBranch,
   FormQuestion,
+  FormVisibilityRule,
   ParsedApplication,
 } from "./types";
 
@@ -14,6 +15,94 @@ export type FormPath = {
 
 function normalizeChoice(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function answerValues(raw: string): string[] {
+  return raw
+    .split("||")
+    .map((part) => normalizeChoice(part))
+    .filter(Boolean);
+}
+
+export function matchesVisibilityRule(
+  rule: FormVisibilityRule,
+  answerMap: Map<string, string>,
+): boolean {
+  const raw = answerMap.get(rule.entryId)?.trim() || "";
+  if (!raw) return false;
+  const selected = answerValues(raw);
+  const targets = rule.values.map(normalizeChoice).filter(Boolean);
+  if (!targets.length) return false;
+
+  const hit = targets.some((target) =>
+    selected.some(
+      (value) =>
+        value === target || value.includes(target) || target.includes(value),
+    ),
+  );
+
+  const comparison = rule.comparison || "is";
+  if (comparison === "not_equals") return !hit;
+  return hit;
+}
+
+/** Whether a question should appear given the current answers. */
+export function isQuestionVisible(
+  question: FormQuestion,
+  answerMap: Map<string, string>,
+  allQuestions: FormQuestion[] = [],
+  visiting: Set<string> = new Set(),
+): boolean {
+  if (visiting.has(question.entryId)) return false;
+  visiting.add(question.entryId);
+
+  if (question.visibleWhen?.length) {
+    return question.visibleWhen.every((rule) => {
+      const controller = allQuestions.find(
+        (item) => item.entryId === rule.entryId,
+      );
+      if (
+        controller &&
+        !isQuestionVisible(controller, answerMap, allQuestions, visiting)
+      ) {
+        return false;
+      }
+      return matchesVisibilityRule(rule, answerMap);
+    });
+  }
+  if (question.initiallyHidden) return false;
+  return true;
+}
+
+/** Prefer the choice that unlocks the most hidden follow-up questions. */
+export function preferredUnlockOption(
+  application: ParsedApplication,
+  question: FormQuestion,
+): string | null {
+  if (!question.options?.length) return null;
+  const gated = (application.questions || []).filter((item) =>
+    item.visibleWhen?.some((rule) => rule.entryId === question.entryId),
+  );
+  if (!gated.length) return null;
+
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const option of question.options) {
+    const count = gated.filter((item) =>
+      item.visibleWhen?.some(
+        (rule) =>
+          rule.entryId === question.entryId &&
+          rule.values.some(
+            (value) => normalizeChoice(value) === normalizeChoice(option),
+          ),
+      ),
+    ).length;
+    if (count > bestCount) {
+      best = option;
+      bestCount = count;
+    }
+  }
+  return bestCount > 0 ? best : null;
 }
 
 /** Option labels that mean end the form now (do not open later sections). */
@@ -147,8 +236,17 @@ function resolveBranchNext(
 }
 
 /** Prefer continue/next over submit/end when drafting an application path. */
-export function preferredNavigationOption(question: FormQuestion): string | null {
+export function preferredNavigationOption(
+  question: FormQuestion,
+  application?: ParsedApplication,
+): string | null {
   if (!question.options.length) return null;
+
+  if (application) {
+    const unlock = preferredUnlockOption(application, question);
+    if (unlock) return unlock;
+  }
+
   const continueOpt = question.options.find((option) =>
     looksLikeContinueOption(option),
   );
@@ -184,9 +282,14 @@ export function resolveFormPath(
   const questions = application.questions;
 
   if (!sections?.length) {
+    const answerMap = new Map(
+      answers.map((answer) => [answer.entryId, answer.value]),
+    );
     return {
       sectionIndexes: [0],
-      questions,
+      questions: questions.filter((question) =>
+        isQuestionVisible(question, answerMap, questions),
+      ),
       pageHistory: "0",
       branchingEntryIds: [],
     };
@@ -212,6 +315,7 @@ export function resolveFormPath(
     for (const entryId of section.questionEntryIds) {
       const question = byEntry.get(entryId);
       if (!question) continue;
+      if (!isQuestionVisible(question, answerMap, questions)) continue;
       pathQuestions.push(question);
       if (!question.optionBranches?.length) continue;
 
@@ -306,13 +410,17 @@ export function isPendingDraftAnswer(answer: FilledAnswer): boolean {
   );
 }
 
-/** True when changing this answer can unlock a different later section. */
+/** True when changing this answer can unlock a different later section or reveal fields. */
 export function canChangeFormPath(
   application: ParsedApplication,
   question: FormQuestion | undefined,
 ): boolean {
   if (!question) return false;
   if (question.optionBranches?.length) return true;
+  const unlocksOthers = (application.questions || []).some((item) =>
+    item.visibleWhen?.some((rule) => rule.entryId === question.entryId),
+  );
+  if (unlocksOthers) return true;
   if (
     (application.sections?.length || 0) > 1 &&
     (question.type === "multiple_choice" || question.type === "dropdown") &&
@@ -324,33 +432,44 @@ export function canChangeFormPath(
 }
 
 /**
- * Keep answers for sections at/before the changed question's section;
- * drop everything after so a new branch can be filled.
+ * Keep answers for sections at/before a section-branching choice; drop later
+ * section answers. Always drop answers for fields that are no longer visible.
  */
 export function pruneAnswersAfterQuestion(
   application: ParsedApplication,
   answers: FilledAnswer[],
   changedEntryId: string,
 ): FilledAnswer[] {
-  const question = application.questions.find((q) => q.entryId === changedEntryId);
-  if (!question || question.sectionIndex == null || !application.sections?.length) {
-    return answers.map((answer) =>
-      answer.entryId === changedEntryId ? answer : answer,
-    );
+  const question = application.questions.find(
+    (item) => item.entryId === changedEntryId,
+  );
+  const answerMap = new Map(
+    answers.map((answer) => [answer.entryId, answer.value]),
+  );
+
+  let kept = answers;
+  if (
+    question?.optionBranches?.length &&
+    question.sectionIndex != null &&
+    application.sections?.length
+  ) {
+    const keepThrough = question.sectionIndex;
+    const keepIds = new Set<string>();
+    for (const section of application.sections) {
+      if (section.index > keepThrough) continue;
+      for (const entryId of section.questionEntryIds) keepIds.add(entryId);
+    }
+    kept = answers.filter((answer) => keepIds.has(answer.entryId));
   }
 
-  const keepThrough = question.sectionIndex;
-  const keepIds = new Set<string>();
-  for (const section of application.sections) {
-    if (section.index > keepThrough) continue;
-    for (const entryId of section.questionEntryIds) keepIds.add(entryId);
-  }
-
-  return answers
-    .filter((answer) => keepIds.has(answer.entryId))
-    .map((answer) =>
-      answer.entryId === changedEntryId ? answer : answer,
+  return kept.filter((answer) => {
+    if (answer.entryId === changedEntryId) return true;
+    const target = application.questions.find(
+      (item) => item.entryId === answer.entryId,
     );
+    if (!target) return true;
+    return isQuestionVisible(target, answerMap, application.questions);
+  });
 }
 
 /** Next section index unlocked by this answer, if any. */
@@ -375,7 +494,8 @@ export function nextSectionAfterAnswer(
 export function hasSectionBranching(application: ParsedApplication): boolean {
   return Boolean(
     application.hasBranching ||
-      (application.sections && application.sections.length > 1),
+      (application.sections && application.sections.length > 1) ||
+      application.questions.some((question) => question.visibleWhen?.length),
   );
 }
 
@@ -616,30 +736,41 @@ export function seedContinueNavigationAnswers(
   options?: { rewriteSubmit?: boolean },
 ): FilledAnswer[] {
   let working = [...answers];
-  const maxPasses = Math.max(application.sections?.length || 1, 1) + 2;
+  const maxPasses = Math.max(application.sections?.length || 1, 1) + 4;
 
   for (let pass = 0; pass < maxPasses; pass += 1) {
     const path = resolveFormPath(application, working);
     let changed = false;
 
     for (const question of path.questions) {
-      if (
-        !question.optionBranches?.length &&
-        !question.options.some(looksLikeContinueOption)
-      ) {
-        continue;
-      }
-      const preferred = preferredNavigationOption(question);
+      const unlockPreferred = preferredUnlockOption(application, question);
+      const navPreferred = preferredNavigationOption(question, application);
+      const preferred = unlockPreferred || navPreferred;
       if (!preferred) continue;
+
+      const isUnlock = Boolean(unlockPreferred);
+      const isNav =
+        Boolean(question.optionBranches?.length) ||
+        question.options.some(
+          (option) =>
+            looksLikeContinueOption(option) || looksLikeSubmitOption(option),
+        );
+      if (!isUnlock && !isNav) continue;
 
       const current = working.find(
         (answer) => answer.entryId === question.entryId,
       );
       const value = current?.value?.trim() || "";
-      if (value && !looksLikeSubmitOption(value)) continue;
-      if (value && looksLikeSubmitOption(value) && !options?.rewriteSubmit) {
+      if (value && !looksLikeSubmitOption(value) && !isUnlock) continue;
+      if (
+        value &&
+        looksLikeSubmitOption(value) &&
+        !options?.rewriteSubmit &&
+        !isUnlock
+      ) {
         continue;
       }
+      if (isUnlock && value) continue;
 
       const nextAnswer: FilledAnswer = {
         ...(current || placeholderAnswer(question)),
@@ -647,7 +778,9 @@ export function seedContinueNavigationAnswers(
         confidence: current?.confidence || "medium",
         rationale:
           current?.rationale ||
-          "Selected continue so the next section can be drafted",
+          (isUnlock
+            ? "Selected the option that reveals follow-up questions"
+            : "Selected continue so the next section can be drafted"),
       };
 
       if (current) {

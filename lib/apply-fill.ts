@@ -4,6 +4,7 @@ import {
   looksLikeContinueOption,
   looksLikeSubmitOption,
   preferredNavigationOption,
+  preferredUnlockOption,
 } from "./form-path";
 import type {
   FilledAnswer,
@@ -355,6 +356,7 @@ function coerceOptionValue(
   question: FormQuestion,
   value: string,
   profile: StudentProfile,
+  application?: ParsedApplication,
 ): { value: string; confidence: FilledAnswer["confidence"] } {
   if (!question.options.length) {
     return { value, confidence: value ? "medium" : "low" };
@@ -389,7 +391,7 @@ function coerceOptionValue(
   }
 
   if (value && question.options.includes(value)) {
-    const navPreferred = preferredNavigationOption(question);
+    const navPreferred = preferredNavigationOption(question, application);
     if (
       looksLikeSubmitOption(value) &&
       navPreferred &&
@@ -407,7 +409,7 @@ function coerceOptionValue(
       value.toLowerCase().includes(option.toLowerCase()),
   );
   if (match) {
-    const navPreferred = preferredNavigationOption(question);
+    const navPreferred = preferredNavigationOption(question, application);
     if (
       looksLikeSubmitOption(match) &&
       navPreferred &&
@@ -418,7 +420,7 @@ function coerceOptionValue(
     return { value: match, confidence: "medium" };
   }
 
-  const navPreferred = preferredNavigationOption(question);
+  const navPreferred = preferredNavigationOption(question, application);
   if (navPreferred) {
     return { value: navPreferred, confidence: "medium" };
   }
@@ -621,6 +623,7 @@ function heuristicFill(
   profile: StudentProfile,
   questions: FormQuestion[],
   opportunity?: string,
+  application?: ParsedApplication,
 ): FilledAnswer[] {
   return questions.map((question) => {
     const optional = isOptionalQuestion(question);
@@ -694,8 +697,16 @@ function heuristicFill(
         rationale = "Synthesized interests answer from your background";
       }
     } else if (kind === "choice" || question.options.length) {
-      const navPreferred = preferredNavigationOption(question);
-      if (
+      const unlockPreferred = application
+        ? preferredUnlockOption(application, question)
+        : null;
+      const navPreferred = preferredNavigationOption(question, application);
+      if (unlockPreferred) {
+        value = unlockPreferred;
+        confidence = "medium";
+        rationale =
+          "Selected the option that reveals follow-up questions";
+      } else if (
         navPreferred &&
         (question.optionBranches?.length ||
           question.options.some(
@@ -709,7 +720,12 @@ function heuristicFill(
           "Continue to the next section so the full application is drafted";
       } else {
         const drafted = draftNarrative(profile, question, opportunity);
-        const coerced = coerceOptionValue(question, drafted, profile);
+        const coerced = coerceOptionValue(
+          question,
+          drafted,
+          profile,
+          application,
+        );
         if (coerced.value) {
           value = coerced.value;
           confidence = coerced.confidence;
@@ -764,7 +780,12 @@ function heuristicFill(
       question.options.length &&
       value.trim()
     ) {
-      const coerced = coerceOptionValue(question, value, profile);
+      const coerced = coerceOptionValue(
+        question,
+        value,
+        profile,
+        application,
+      );
       value = coerced.value;
       if (confidence === "high" && coerced.confidence !== "high") {
         confidence = coerced.confidence;
@@ -789,7 +810,10 @@ function heuristicFill(
         question.type === "checkboxes"
       ) {
         value =
-          preferredNavigationOption(question) ||
+          (application
+            ? preferredUnlockOption(application, question)
+            : null) ||
+          preferredNavigationOption(question, application) ||
           question.options.find((option) => !looksLikeSubmitOption(option)) ||
           question.options[0] ||
           "";
@@ -835,6 +859,7 @@ Core rules:
 - Do not invent awards, GPAs, test scores, employers, or credentials absent from the profile.
 - For multiple_choice/dropdown: value MUST be exactly one of the provided options, or "" when optional and nothing fits.
 - Navigation choices like "Submit form" vs "Proceed to next section": ALWAYS choose the continue/next option when available.
+- Yes/No questions that unlock follow-up fields: prefer Yes when the form uses that answer to reveal more questions, unless the profile clearly indicates otherwise.
 - For checkboxes: join selected options with ||, or "" if optional and nothing fits.
 - For file/manualOnly questions: value must be "".
 - Keep answers concise and first-person where appropriate.`;
@@ -855,6 +880,7 @@ export async function fillApplicationAnswers(options: {
     options.profile,
     options.application.questions,
     opportunity,
+    options.application,
   );
 
   if (!getApiKey()) {
@@ -961,7 +987,12 @@ export async function fillApplicationAnswers(options: {
     }
 
     if (question.options.length && value.trim()) {
-      const coerced = coerceOptionValue(question, value, options.profile);
+      const coerced = coerceOptionValue(
+        question,
+        value,
+        options.profile,
+        options.application,
+      );
       value = coerced.value;
       if (confidence === "high" && coerced.confidence !== "high") {
         confidence = coerced.confidence;
