@@ -616,8 +616,8 @@ export function ApplyWorkspace() {
             <h3>Autofill the live page</h3>
             <p className="provider-note">
               The application tab should be open and the fill script is on your
-              clipboard. This works on basically any platform because it runs
-              inside that page.
+              clipboard. It sets text fields, dropdowns, radios, and checkboxes
+              on the live page.
             </p>
 
             <ol className="fill-instructions">
