@@ -2,7 +2,6 @@ import type {
   FilledAnswer,
   FormOptionBranch,
   FormQuestion,
-  FormSection,
   ParsedApplication,
 } from "./types";
 
@@ -12,6 +11,26 @@ export type FormPath = {
   pageHistory: string;
   branchingEntryIds: string[];
 };
+
+function normalizeChoice(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function findBranch(
+  branches: FormOptionBranch[] | undefined,
+  value: string,
+): FormOptionBranch | undefined {
+  if (!branches?.length || !value.trim()) return undefined;
+  const want = normalizeChoice(value);
+  return (
+    branches.find((item) => normalizeChoice(item.option) === want) ||
+    branches.find(
+      (item) =>
+        normalizeChoice(item.option).includes(want) ||
+        want.includes(normalizeChoice(item.option)),
+    )
+  );
+}
 
 /** Walk sections using current answers and branching rules. */
 export function resolveFormPath(
@@ -61,9 +80,7 @@ export function resolveFormPath(
         next = null;
         break;
       }
-      const branch = question.optionBranches.find(
-        (item) => item.option === value,
-      );
+      const branch = findBranch(question.optionBranches, value);
       if (branch) {
         next = branch.nextSectionIndex;
       }
@@ -93,6 +110,27 @@ export function questionsMissingAnswers(
   return path.questions.filter((q) => !answered.has(q.entryId));
 }
 
+export function isBranchingQuestion(question: FormQuestion): boolean {
+  return Boolean(question.optionBranches?.length);
+}
+
+/** True when changing this answer can unlock a different later section. */
+export function canChangeFormPath(
+  application: ParsedApplication,
+  question: FormQuestion | undefined,
+): boolean {
+  if (!question) return false;
+  if (question.optionBranches?.length) return true;
+  if (
+    (application.sections?.length || 0) > 1 &&
+    (question.type === "multiple_choice" || question.type === "dropdown") &&
+    question.options.length > 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Keep answers for sections at/before the changed question's section;
  * drop everything after so a new branch can be filled.
@@ -116,11 +154,27 @@ export function pruneAnswersAfterQuestion(
     for (const entryId of section.questionEntryIds) keepIds.add(entryId);
   }
 
-  return answers.filter((answer) => keepIds.has(answer.entryId));
+  return answers
+    .filter((answer) => keepIds.has(answer.entryId))
+    .map((answer) =>
+      answer.entryId === changedEntryId ? answer : answer,
+    );
 }
 
-export function isBranchingQuestion(question: FormQuestion): boolean {
-  return Boolean(question.optionBranches?.some((b) => b.nextSectionIndex !== undefined));
+/** Next section index unlocked by this answer, if any. */
+export function nextSectionAfterAnswer(
+  application: ParsedApplication,
+  entryId: string,
+  value: string,
+): number | null {
+  const question = application.questions.find((q) => q.entryId === entryId);
+  if (!question) return null;
+  const branch = findBranch(question.optionBranches, value);
+  if (branch) return branch.nextSectionIndex;
+  const section = application.sections?.find(
+    (item) => item.index === (question.sectionIndex ?? 0),
+  );
+  return section?.defaultNextSectionIndex ?? null;
 }
 
 export function hasSectionBranching(application: ParsedApplication): boolean {
