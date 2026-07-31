@@ -53,11 +53,13 @@ export function InternshipCard({ match }: { match: MatchResult }) {
           {internship.org} · {internship.location}
         </p>
         <p className="desc-line">{internship.description}</p>
-        <ul className="reason-list">
-          {reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
-        </ul>
+        {reasons.length ? (
+          <ul className="reason-list">
+            {reasons.slice(0, 2).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       <div className="internship-row-actions">
         <Link className="btn-primary" href={applyHref}>
