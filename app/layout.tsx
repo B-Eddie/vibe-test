@@ -27,8 +27,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${display.variable} ${body.variable} antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${display.variable} ${body.variable} antialiased`}
+        suppressHydrationWarning
+      >
         <div className="shell">
           <SiteNav />
           {children}

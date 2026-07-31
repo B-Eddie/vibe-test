@@ -104,10 +104,11 @@ export function scoreInternship(
   if (days !== null) {
     if (days < 0) {
       score -= 40;
+      // Avoid "N days" wording — timezone differences caused React hydration #418.
       reasons.push("Deadline may have passed — verify on site");
     } else if (days <= 21) {
       score += 12;
-      reasons.push(`Deadline in ${days} day${days === 1 ? "" : "s"}`);
+      reasons.push("Deadline coming up soon");
     } else if (days <= 60) {
       score += 8;
       reasons.push("Upcoming deadline window");

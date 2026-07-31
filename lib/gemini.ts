@@ -2,15 +2,22 @@ import type { Internship } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
 
-export const GEMINI_MODEL =
-  process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+/** Prefer flash models that work with the current Gemini Developer API. */
+const DEFAULT_MODELS = [
+  process.env.GEMINI_MODEL?.trim(),
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+].filter((value): value is string => Boolean(value));
+
+export const GEMINI_MODEL = DEFAULT_MODELS[0] || "gemini-2.5-flash";
 
 export function getApiKey(): string | undefined {
-  return (
+  const key =
     process.env.GEMINI_API_KEY?.trim() ||
     process.env.GOOGLE_API_KEY?.trim() ||
-    undefined
-  );
+    undefined;
+  return key || undefined;
 }
 
 type GeminiPart = { text?: string };
@@ -19,7 +26,13 @@ type GeminiResponse = {
     content?: { parts?: GeminiPart[] };
     finishReason?: string;
   }>;
-  error?: { message?: string };
+  error?: { message?: string; status?: string; code?: number };
+};
+
+export type GeminiResult = {
+  text: string | null;
+  error: string | null;
+  model: string | null;
 };
 
 function extractText(data: GeminiResponse): string | null {
@@ -31,20 +44,16 @@ function extractText(data: GeminiResponse): string | null {
   return text || null;
 }
 
-/**
- * Direct REST calls — avoids @google/generative-ai SDK tool/json quirks
- * that surface as minified "X is not a function" errors on Vercel.
- */
-export async function geminiText(options: {
-  system: string;
-  user: string;
-  json?: boolean;
-  search?: boolean;
-}): Promise<string | null> {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-
-  const model = GEMINI_MODEL;
+async function callGeminiModel(
+  model: string,
+  apiKey: string,
+  options: {
+    system: string;
+    user: string;
+    json?: boolean;
+    search?: boolean;
+  },
+): Promise<GeminiResult> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   // JSON mime type cannot be combined with google_search tool.
@@ -65,7 +74,7 @@ export async function geminiText(options: {
       },
     ],
     generationConfig: {
-      temperature: 0.4,
+      temperature: 0.3,
       maxOutputTokens: 8192,
       ...(useJson ? { responseMimeType: "application/json" } : {}),
     },
@@ -81,27 +90,107 @@ export async function geminiText(options: {
     body.tools = [{ google_search: {} }];
   }
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
 
-    const data = (await res.json()) as GeminiResponse;
-    if (!res.ok) {
-      console.error("Gemini API error", res.status, data.error?.message || data);
-      return null;
-    }
-    return extractText(data);
-  } catch (error) {
-    console.error("Gemini request failed", error);
-    return null;
+  const data = (await res.json()) as GeminiResponse;
+  if (!res.ok) {
+    const message =
+      data.error?.message ||
+      `Gemini HTTP ${res.status}${data.error?.status ? ` (${data.error.status})` : ""}`;
+    return { text: null, error: message, model };
   }
+
+  const text = extractText(data);
+  if (!text) {
+    const reason = data.candidates?.[0]?.finishReason;
+    return {
+      text: null,
+      error: reason
+        ? `Gemini returned no text (finishReason=${reason})`
+        : "Gemini returned an empty response",
+      model,
+    };
+  }
+
+  return { text, error: null, model };
 }
 
-function extractJsonArray(content: string): unknown[] | null {
+/**
+ * Direct REST calls with model fallback. Returns text + error so the UI can
+ * show when GEMINI_API_KEY is missing/invalid instead of silently falling back.
+ */
+export async function geminiGenerate(options: {
+  system: string;
+  user: string;
+  json?: boolean;
+  search?: boolean;
+}): Promise<GeminiResult> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return {
+      text: null,
+      error: "GEMINI_API_KEY is not set in this deployment",
+      model: null,
+    };
+  }
+
+  let lastError: string | null = null;
+  const tried = new Set<string>();
+
+  for (const model of DEFAULT_MODELS) {
+    if (tried.has(model)) continue;
+    tried.add(model);
+    try {
+      const result = await callGeminiModel(model, apiKey, options);
+      if (result.text) return result;
+      lastError = result.error;
+      // Retry next model on not-found / unsupported model errors
+      if (
+        lastError &&
+        /not found|not supported|invalid model|NOT_FOUND/i.test(lastError)
+      ) {
+        continue;
+      }
+      // For other errors (bad key, quota), don't keep retrying forever
+      if (
+        lastError &&
+        /API key|PERMISSION|UNAUTHENTICATED|quota|billing/i.test(lastError)
+      ) {
+        return result;
+      }
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error.message : "Gemini request failed";
+    }
+  }
+
+  return {
+    text: null,
+    error: lastError || "Gemini request failed",
+    model: null,
+  };
+}
+
+/** Back-compat helper used by existing call sites. */
+export async function geminiText(options: {
+  system: string;
+  user: string;
+  json?: boolean;
+  search?: boolean;
+}): Promise<string | null> {
+  const result = await geminiGenerate(options);
+  if (result.error) {
+    console.error("Gemini:", result.error, result.model);
+  }
+  return result.text;
+}
+
+export function extractJsonArray(content: string): unknown[] | null {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1]?.trim() || content.trim();
   const start = candidate.indexOf("[");
@@ -128,15 +217,15 @@ export async function searchInternshipsWithGemini(options: {
   city?: string;
 }): Promise<Internship[]> {
   const query = buildSearchQuery(options.interests ?? [], options.city ?? "");
-  const text = await geminiText({
+  const result = await geminiGenerate({
     search: true,
     system:
       "You find real, currently open or regularly recurring high school internship and pre-college programs. Prefer official program pages. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
     user: query,
   });
 
-  if (!text) return [];
-  const parsed = extractJsonArray(text);
+  if (!result.text) return [];
+  const parsed = extractJsonArray(result.text);
   if (!parsed) return [];
 
   const now = new Date().toISOString();
@@ -186,4 +275,30 @@ export async function loadInternships(options: {
   const discovered = await searchInternshipsWithGemini(options);
   const listings = mergeListings([getSeedInternships(), discovered]);
   return { listings, liveSearch: discovered.length > 0 };
+}
+
+export async function probeGemini(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  model: string | null;
+  error: string | null;
+}> {
+  if (!getApiKey()) {
+    return {
+      configured: false,
+      ok: false,
+      model: null,
+      error: "GEMINI_API_KEY is not set",
+    };
+  }
+  const result = await geminiGenerate({
+    system: "Reply with exactly the word pong.",
+    user: "ping",
+  });
+  return {
+    configured: true,
+    ok: Boolean(result.text),
+    model: result.model,
+    error: result.error,
+  };
 }

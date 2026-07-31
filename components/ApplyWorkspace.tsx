@@ -41,6 +41,8 @@ export function ApplyWorkspace() {
   );
   const [answers, setAnswers] = useState<FilledAnswer[]>([]);
   const [provider, setProvider] = useState<string | null>(null);
+  const [geminiError, setGeminiError] = useState<string | null>(null);
+  const [geminiModel, setGeminiModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,13 +133,11 @@ export function ApplyWorkspace() {
         answers?: FilledAnswer[];
         provider?: string;
         error?: string;
+        geminiError?: string | null;
+        geminiModel?: string | null;
       } = {};
       try {
-        fillData = (await fillRes.json()) as {
-          answers?: FilledAnswer[];
-          provider?: string;
-          error?: string;
-        };
+        fillData = (await fillRes.json()) as typeof fillData;
       } catch {
         throw new Error(
           `Could not draft answers (HTTP ${fillRes.status}). Check GEMINI_API_KEY.`,
@@ -151,6 +151,8 @@ export function ApplyWorkspace() {
       setApplication(parseData.application);
       setAnswers(fillData.answers);
       setProvider(fillData.provider ?? null);
+      setGeminiError(fillData.geminiError ?? null);
+      setGeminiModel(fillData.geminiModel ?? null);
       setStep("review");
 
       const id = fromId || targetIdFor(parseData.application.url);
@@ -365,7 +367,16 @@ export function ApplyWorkspace() {
                     {isGoogle ? "Direct submit available" : "Live-page autofill"}
                   </span>
                   {provider ? <span>{provider}</span> : null}
+                  {geminiModel ? <span>{geminiModel}</span> : null}
                 </div>
+                {geminiError ? (
+                  <p className="error-note" style={{ marginTop: "0.75rem" }}>
+                    Gemini did not fill this form ({geminiError}). Showing
+                    local fallback answers — edit before submitting. Confirm
+                    GEMINI_API_KEY is set for Production on Vercel, then
+                    redeploy.
+                  </p>
+                ) : null}
               </div>
               <a
                 className="btn-ghost"
@@ -569,6 +580,9 @@ export function ApplyWorkspace() {
                   setAnswers([]);
                   setConfirmed(false);
                   setStatusNote(null);
+                  setGeminiError(null);
+                  setGeminiModel(null);
+                  setProvider(null);
                 }}
               >
                 Apply to another

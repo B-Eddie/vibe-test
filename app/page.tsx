@@ -26,7 +26,7 @@ export default function HomePage() {
 
       <section className="home-matches">
         <div className="section-heading">
-          <h2>Today’s top matches</h2>
+          <h2>Today&apos;s top matches</h2>
           <p>
             Ranked from your background. Hit Apply on any card to draft and
             submit from your profile.

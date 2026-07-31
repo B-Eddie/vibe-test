@@ -1,4 +1,4 @@
-import { geminiText, getApiKey } from "./gemini";
+import { geminiGenerate, extractJsonArray, getApiKey } from "./gemini";
 import type {
   FilledAnswer,
   FormQuestion,
@@ -6,20 +6,6 @@ import type {
   StudentProfile,
 } from "./types";
 import { profileToPromptContext } from "./storage-server";
-
-function extractJsonArray(content: string): unknown[] | null {
-  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced?.[1]?.trim() || content.trim();
-  const start = candidate.indexOf("[");
-  const end = candidate.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) return null;
-  try {
-    const parsed = JSON.parse(candidate.slice(start, end + 1));
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
 
 function heuristicFill(
   profile: StudentProfile,
@@ -29,7 +15,7 @@ function heuristicFill(
     const title = question.title.toLowerCase();
     let value = "";
     let confidence: FilledAnswer["confidence"] = "low";
-    let rationale = "Best-effort from your background";
+    let rationale = "Needs your review";
 
     if (question.manualOnly) {
       return {
@@ -59,7 +45,16 @@ function heuristicFill(
       value = profile.phone;
       confidence = profile.phone ? "high" : "low";
       rationale = "From your phone";
-    } else if (title.includes("name") && !title.includes("school")) {
+    } else if (
+      (title.includes("full name") ||
+        title === "name" ||
+        title.startsWith("name ") ||
+        title.includes("your name") ||
+        title.includes("legal name")) &&
+      !title.includes("school") &&
+      !title.includes("parent") &&
+      !title.includes("org")
+    ) {
       value = profile.name;
       confidence = profile.name ? "high" : "low";
       rationale = "From your name";
@@ -67,7 +62,10 @@ function heuristicFill(
       value = profile.school;
       confidence = profile.school ? "high" : "low";
       rationale = "From your school";
-    } else if (title.includes("grade") || title.includes("year")) {
+    } else if (
+      (title.includes("grade") || title.includes("year")) &&
+      !title.includes("gradua")
+    ) {
       value = profile.grade;
       confidence = "high";
       rationale = "From your grade";
@@ -79,32 +77,14 @@ function heuristicFill(
       value = profile.parentName || profile.parentEmail;
       confidence = value ? "medium" : "low";
       rationale = "From parent/guardian fields";
-    } else if (
-      title.includes("why") ||
-      title.includes("interest") ||
-      title.includes("motivate")
-    ) {
-      value =
-        profile.bio ||
-        `I am a grade ${profile.grade} student interested in ${profile.interests.slice(0, 3).join(", ") || "learning and growth"}.`;
-      confidence = "medium";
-      rationale = "From bio and interests";
-    } else if (
-      title.includes("experience") ||
-      title.includes("resume") ||
-      title.includes("background")
-    ) {
-      value = profile.resumeText || profile.activities || profile.bio;
-      confidence = value ? "medium" : "low";
-      rationale = "From résumé / activities";
     } else if (title.includes("skill")) {
       value = profile.skills.join(", ");
       confidence = profile.skills.length ? "high" : "low";
       rationale = "From skills";
     } else if (question.options.length) {
-      value = question.options[0] ?? "";
+      value = "";
       confidence = "low";
-      rationale = "Defaulted to first option — please review";
+      rationale = "Pick an option — AI unavailable for this fill";
     } else {
       const fact = profile.customFacts.find((item) =>
         title.includes(item.label.toLowerCase()),
@@ -112,11 +92,12 @@ function heuristicFill(
       if (fact) {
         value = fact.value;
         confidence = "high";
-        rationale = `From custom fact “${fact.label}”`;
+        rationale = `From custom fact "${fact.label}"`;
       } else {
-        value = profile.bio.slice(0, 280);
+        // Do NOT paste bio into every unknown field — that looks broken.
+        value = "";
         confidence = "low";
-        rationale = "Needs your review";
+        rationale = "Left blank for you to complete";
       }
     }
 
@@ -132,7 +113,7 @@ function heuristicFill(
           option.toLowerCase().includes(value.toLowerCase()) ||
           value.toLowerCase().includes(option.toLowerCase()),
       );
-      value = match ?? question.options[0] ?? "";
+      value = match ?? "";
       confidence = match ? "medium" : "low";
     }
 
@@ -156,16 +137,30 @@ export async function fillApplicationAnswers(options: {
   profile: StudentProfile;
   application: ParsedApplication;
   opportunityContext?: string;
-}): Promise<{ answers: FilledAnswer[]; provider: "gemini" | "local-fallback" }> {
-  const fallback = heuristicFill(options.profile, options.application.questions);
+}): Promise<{
+  answers: FilledAnswer[];
+  provider: "gemini" | "local-fallback";
+  geminiError: string | null;
+  geminiModel: string | null;
+}> {
+  const fallback = heuristicFill(
+    options.profile,
+    options.application.questions,
+  );
+
   if (!getApiKey()) {
-    return { answers: fallback, provider: "local-fallback" };
+    return {
+      answers: fallback,
+      provider: "local-fallback",
+      geminiError: "GEMINI_API_KEY is not set on this deployment",
+      geminiModel: null,
+    };
   }
 
-  const content = await geminiText({
+  const result = await geminiGenerate({
     json: true,
     system:
-      "You fill internship/program applications for a high school student. Return ONLY a JSON array. Each item: {entryId, value, confidence: high|medium|low, rationale}. Use only facts from the student profile. For multiple_choice/dropdown/checkboxes, value MUST be one of the provided options (checkboxes: join selected options with ||). Leave value empty if unknown. Never invent achievements. For file questions return empty value.",
+      "You fill internship/program applications for a high school student. Return ONLY a JSON array. Each item: {entryId, value, confidence: high|medium|low, rationale}. Use only facts from the student profile. Write specific answers for essays using bio/resume/activities — tailor them to each question; never paste the same bio into every field. For multiple_choice/dropdown/checkboxes, value MUST be one of the provided options (checkboxes: join selected options with ||). Leave value empty if unknown. Never invent achievements. For file questions return empty value.",
     user: JSON.stringify({
       student: profileToPromptContext(options.profile),
       opportunity: options.opportunityContext ?? options.application.title,
@@ -182,9 +177,16 @@ export async function fillApplicationAnswers(options: {
     }),
   });
 
-  const parsed = content ? extractJsonArray(content) : null;
+  const parsed = result.text ? extractJsonArray(result.text) : null;
   if (!parsed) {
-    return { answers: fallback, provider: "local-fallback" };
+    return {
+      answers: fallback,
+      provider: "local-fallback",
+      geminiError:
+        result.error ||
+        "Gemini returned text that was not valid JSON answer array",
+      geminiModel: result.model,
+    };
   }
 
   const byEntry = new Map<
@@ -236,5 +238,10 @@ export async function fillApplicationAnswers(options: {
     };
   });
 
-  return { answers, provider: "gemini" };
+  return {
+    answers,
+    provider: "gemini",
+    geminiError: null,
+    geminiModel: result.model,
+  };
 }

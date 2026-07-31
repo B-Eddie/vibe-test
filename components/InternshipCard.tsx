@@ -3,12 +3,34 @@ import type { MatchResult } from "@/lib/types";
 
 function formatDeadline(deadline: string | null): string {
   if (!deadline) return "Rolling / see posting";
+  // Parse as UTC date-only when possible to avoid SSR/client timezone skew.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(deadline);
+  if (match) {
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const month = months[Number(match[2]) - 1];
+    if (!month) return deadline;
+    return `${month} ${Number(match[3])}, ${match[1]}`;
+  }
   const date = new Date(deadline);
   if (Number.isNaN(date.getTime())) return deadline;
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
