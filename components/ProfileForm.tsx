@@ -235,6 +235,18 @@ export function ProfileForm() {
         />
       </label>
 
+      <label>
+        Writing style (paste)
+        <textarea
+          rows={8}
+          value={profile.writingSamples}
+          onChange={(e) =>
+            setProfile({ ...profile, writingSamples: e.target.value })
+          }
+          placeholder="Paste 1–3 things you’ve written — school essays, emails, or application answers. InternHarbor will match your voice when drafting."
+        />
+      </label>
+
       <div className="custom-facts">
         <div className="section-heading">
           <h2>Reusable answers</h2>

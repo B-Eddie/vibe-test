@@ -356,6 +356,7 @@ Return ONLY a JSON array. Each item must be:
 Rules:
 - EVERY non-file question MUST have a non-empty value. Never leave blanks for the student to stare at.
 - Prefer exact facts from the student profile (name, email, school, skills, bio, resume, activities, custom facts).
+- When writing style samples are provided, match that student's tone, sentence length, vocabulary, and first-person voice in essays and short answers. Do not copy the samples verbatim into unrelated questions.
 - When the profile is thin or a field is not directly answered, still WRITE a plausible draft the student would say — grounded in their grade, school, interests, skills, bio/resume, and the opportunity. Mark confidence "low" (or "medium" if partly grounded).
 - Tailor essay/short-answer text to EACH question. Do not paste the identical bio into every field.
 - Do not invent specific awards, GPAs, employers, or credentials that are not in the profile. General sincere interest and motivation statements are OK when details are missing.
