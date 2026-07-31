@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Figtree } from "next/font/google";
+import { Plus_Jakarta_Sans, Syne } from "next/font/google";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteNav } from "@/components/SiteNav";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({
+const display = Syne({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["600", "700", "800"],
 });
 
-const body = Figtree({
+const body = Plus_Jakarta_Sans({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -32,9 +33,10 @@ export default function RootLayout({
         className={`${display.variable} ${body.variable} antialiased`}
         suppressHydrationWarning
       >
-        <div className="shell">
+        <div className="app-frame">
           <SiteNav />
           {children}
+          <SiteFooter />
         </div>
       </body>
     </html>
