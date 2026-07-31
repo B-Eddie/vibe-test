@@ -1,6 +1,8 @@
 import type {
+  FormOptionBranch,
   FormQuestion,
   FormQuestionType,
+  FormSection,
   ParsedApplication,
 } from "./types";
 import { BROWSER_UA, normalizeApplicationUrl } from "./fetch-page";
@@ -18,6 +20,8 @@ const TYPE_MAP: Record<number, FormQuestionType> = {
   11: "file",
   13: "unknown",
 };
+
+const PAGE_BREAK_TYPE = 8;
 
 function isGoogleFormsUrl(url: string): boolean {
   try {
@@ -43,7 +47,6 @@ export function classifyApplicationUrl(url: string): "google-form" | "web" {
 
 export function toViewFormUrl(raw: string): string {
   const url = new URL(raw.trim());
-  // Short links resolve after redirect — don't invent /viewform on forms.gle
   if (url.hostname.includes("forms.gle")) {
     return url.toString();
   }
@@ -129,26 +132,60 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function readOptions(entryConfig: unknown): string[] {
+function readOptionsAndBranches(
+  entryConfig: unknown,
+  pageIdToIndex: Map<number, number>,
+): { options: string[]; branches: FormOptionBranch[] } {
   const entry = asArray(entryConfig);
   const optionsBlock = asArray(entry[1]);
-  return optionsBlock
-    .map((option) => {
-      const row = asArray(option);
-      return typeof row[0] === "string" ? row[0] : null;
-    })
-    .filter((value): value is string => Boolean(value));
+  const options: string[] = [];
+  const branches: FormOptionBranch[] = [];
+
+  for (const option of optionsBlock) {
+    const row = asArray(option);
+    const label = typeof row[0] === "string" ? row[0] : null;
+    if (!label) continue;
+    options.push(label);
+
+    // Google stores go-to-section on option[2] (and occasionally option[3]).
+    const navRaw =
+      typeof row[2] === "number"
+        ? row[2]
+        : typeof row[3] === "number"
+          ? row[3]
+          : null;
+    if (navRaw === null) continue;
+    if (navRaw <= 0) {
+      branches.push({ option: label, nextSectionIndex: null });
+      continue;
+    }
+    const nextIndex = pageIdToIndex.get(navRaw);
+    branches.push({
+      option: label,
+      nextSectionIndex: nextIndex ?? null,
+    });
+  }
+
+  return { options, branches };
 }
 
-function parseQuestion(raw: unknown): FormQuestion | null {
+function parseQuestion(
+  raw: unknown,
+  sectionIndex: number,
+  pageIdToIndex: Map<number, number>,
+): FormQuestion | null {
   const row = asArray(raw);
   if (row.length < 5) return null;
 
   const questionId = String(row[0] ?? "");
   const title = typeof row[1] === "string" ? row[1] : "Untitled question";
   const typeCode = typeof row[3] === "number" ? row[3] : -1;
+  if (typeCode === PAGE_BREAK_TYPE) return null;
   const type = TYPE_MAP[typeCode] ?? "unknown";
+  if (type === "unknown" && typeCode === 7) return null;
+
   const entries = asArray(row[4]);
+  if (!entries.length) return null;
   const firstEntry = asArray(entries[0]);
   const entryIdNum = firstEntry[0];
   if (typeof entryIdNum !== "number" && typeof entryIdNum !== "string") {
@@ -157,6 +194,10 @@ function parseQuestion(raw: unknown): FormQuestion | null {
 
   const requiredFlag = firstEntry[2];
   const required = requiredFlag === 1 || requiredFlag === true;
+  const { options, branches } = readOptionsAndBranches(
+    firstEntry,
+    pageIdToIndex,
+  );
 
   return {
     id: questionId,
@@ -164,35 +205,120 @@ function parseQuestion(raw: unknown): FormQuestion | null {
     title,
     type,
     required,
-    options: readOptions(firstEntry),
+    options,
     manualOnly: type === "file",
+    sectionIndex,
+    optionBranches: branches.length ? branches : undefined,
   };
 }
 
-function walkQuestions(node: unknown, out: FormQuestion[]): void {
-  if (!Array.isArray(node)) return;
+type PageChunk = {
+  pageBreakId: number | null;
+  title: string;
+  description: string;
+  defaultNavId: number | null;
+  items: unknown[];
+};
 
-  // Heuristic: a question row looks like [id, title, null, type, [[entry...]]]
-  if (
-    (typeof node[0] === "number" || typeof node[0] === "string") &&
-    typeof node[1] === "string" &&
-    typeof node[3] === "number" &&
-    Array.isArray(node[4])
-  ) {
-    const parsed = parseQuestion(node);
-    if (parsed) out.push(parsed);
-  }
+function splitPages(items: unknown[]): PageChunk[] {
+  const rawPages: unknown[][] = [];
+  let current: unknown[] = [];
 
-  for (const child of node) {
-    walkQuestions(child, out);
+  for (const item of items) {
+    const row = asArray(item);
+    const typeCode = typeof row[3] === "number" ? row[3] : -1;
+    if (typeCode === PAGE_BREAK_TYPE) {
+      if (current.length) rawPages.push(current);
+      current = [];
+    }
+    current.push(item);
   }
+  if (current.length) rawPages.push(current);
+
+  return rawPages.map((pageItems, index) => {
+    const breakItem = pageItems.find((item) => {
+      const row = asArray(item);
+      return (typeof row[3] === "number" ? row[3] : -1) === PAGE_BREAK_TYPE;
+    });
+    const breakRow = breakItem ? asArray(breakItem) : null;
+    const questionsOnly = pageItems.filter((item) => {
+      const row = asArray(item);
+      return (typeof row[3] === "number" ? row[3] : -1) !== PAGE_BREAK_TYPE;
+    });
+
+    return {
+      pageBreakId:
+        breakRow && typeof breakRow[0] === "number" ? breakRow[0] : null,
+      title:
+        breakRow && typeof breakRow[1] === "string" && breakRow[1].trim()
+          ? breakRow[1].trim()
+          : `Section ${index + 1}`,
+      description:
+        breakRow && typeof breakRow[2] === "string" ? breakRow[2] : "",
+      defaultNavId:
+        breakRow && typeof breakRow[5] === "number" ? breakRow[5] : null,
+      items: questionsOnly,
+    };
+  });
+}
+
+function buildSectionsAndQuestions(data: unknown[]): {
+  questions: FormQuestion[];
+  sections: FormSection[];
+  hasBranching: boolean;
+} {
+  const root = asArray(data[1]);
+  const items = asArray(root[1]);
+  const pages = splitPages(items);
+
+  const pageIdToIndex = new Map<number, number>();
+  pages.forEach((page, index) => {
+    if (page.pageBreakId != null) pageIdToIndex.set(page.pageBreakId, index);
+  });
+
+  const sections: FormSection[] = [];
+  const questions: FormQuestion[] = [];
+  let hasBranching = pages.length > 1;
+
+  pages.forEach((page, index) => {
+    const questionEntryIds: string[] = [];
+    for (const item of page.items) {
+      const parsed = parseQuestion(item, index, pageIdToIndex);
+      if (!parsed) continue;
+      if (parsed.optionBranches?.length) hasBranching = true;
+      questions.push(parsed);
+      questionEntryIds.push(parsed.entryId);
+    }
+
+    let defaultNext: number | null = index + 1 < pages.length ? index + 1 : null;
+    if (page.defaultNavId != null) {
+      if (page.defaultNavId <= 0 || page.defaultNavId === page.pageBreakId) {
+        defaultNext = null;
+      } else if (pageIdToIndex.has(page.defaultNavId)) {
+        defaultNext = pageIdToIndex.get(page.defaultNavId) ?? null;
+      }
+    }
+
+    sections.push({
+      id:
+        page.pageBreakId != null
+          ? `section-${page.pageBreakId}`
+          : `section-${index}`,
+      index,
+      title: page.title || `Section ${index + 1}`,
+      description: page.description || undefined,
+      questionEntryIds,
+      defaultNextSectionIndex: defaultNext,
+    });
+  });
+
+  return { questions, sections, hasBranching };
 }
 
 export async function parseGoogleForm(
   rawUrl: string,
 ): Promise<ParsedApplication> {
   const startUrl = normalizeApplicationUrl(rawUrl);
-  // Resolve forms.gle → docs.google.com/forms/.../viewform via redirects
   const probe = await fetch(startUrl, {
     headers: {
       "User-Agent": BROWSER_UA,
@@ -236,29 +362,25 @@ export async function parseGoogleForm(
     );
   }
 
-  const questions: FormQuestion[] = [];
-  walkQuestions(data, questions);
-
-  // Deduplicate by entryId
-  const unique = new Map<string, FormQuestion>();
-  for (const question of questions) {
-    if (!unique.has(question.entryId)) unique.set(question.entryId, question);
-  }
-  const deduped = [...unique.values()];
+  const { questions, sections, hasBranching } = buildSectionsAndQuestions(data);
 
   const collectEmail =
     /name=["']emailAddress["']/i.test(html) ||
     html.toLowerCase().includes("record email addresses");
 
   if (collectEmail) {
-    deduped.unshift({
+    questions.unshift({
       id: "emailAddress",
       entryId: "emailAddress",
       title: "Email address",
       type: "email",
       required: true,
       options: [],
+      sectionIndex: 0,
     });
+    if (sections[0]) {
+      sections[0].questionEntryIds.unshift("emailAddress");
+    }
   }
 
   const formTitle =
@@ -275,7 +397,7 @@ export async function parseGoogleForm(
       : "";
 
   const fbzx = extractFbzx(html);
-  const supportsAutoSubmit = deduped.some((q) => !q.manualOnly);
+  const supportsAutoSubmit = questions.some((q) => !q.manualOnly);
 
   return {
     kind: "google-form",
@@ -283,7 +405,9 @@ export async function parseGoogleForm(
     submitUrl: toFormResponseUrl(viewUrl),
     title: formTitle,
     description,
-    questions: deduped,
+    questions,
+    sections,
+    hasBranching,
     fbzx,
     collectEmail,
     supportsAutoSubmit,
@@ -305,11 +429,11 @@ export async function submitGoogleForm(options: {
   submitUrl: string;
   answers: Record<string, string>;
   fbzx: string | null;
+  pageHistory?: string;
 }): Promise<{ ok: boolean; status: number }> {
   const body = new URLSearchParams();
   for (const [key, value] of Object.entries(options.answers)) {
     if (!value) continue;
-    // Checkboxes may be comma-separated → send multiple values
     if (key.startsWith("entry.") && value.includes("||")) {
       for (const part of value.split("||").map((item) => item.trim())) {
         if (part) body.append(key, part);
@@ -320,7 +444,7 @@ export async function submitGoogleForm(options: {
   }
 
   body.set("fvv", "1");
-  body.set("pageHistory", "0");
+  body.set("pageHistory", options.pageHistory || "0");
   body.set("submissionTimestamp", "-1");
   if (options.fbzx) body.set("fbzx", options.fbzx);
 
@@ -336,7 +460,6 @@ export async function submitGoogleForm(options: {
     cache: "no-store",
   });
 
-  // Google often returns 200 or 302 on success
   const ok = res.status === 200 || res.status === 302 || res.status === 0;
   return { ok, status: res.status };
 }

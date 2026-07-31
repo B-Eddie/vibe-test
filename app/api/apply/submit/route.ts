@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
     answers?: Record<string, string>;
     fbzx?: string | null;
     confirm?: boolean;
+    pageHistory?: string;
   };
   try {
     body = await request.json();
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
       submitUrl: body.submitUrl,
       answers: body.answers,
       fbzx: body.fbzx ?? null,
+      pageHistory: body.pageHistory,
     });
     return NextResponse.json(result);
   } catch (error) {
