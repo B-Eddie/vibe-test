@@ -38,9 +38,49 @@ export function looksLikeSubmitOption(label: string): boolean {
 export function looksLikeContinueOption(label: string): boolean {
   const t = normalizeChoice(label);
   if (!t || looksLikeSubmitOption(t)) return false;
-  return /\b(proceed|continue|next section|next page|go to (the )?next)\b/.test(
+  return /\b(proceed|proced|continue|next section|next page|go to (the )?next|keep going|go on)\b/.test(
     t,
   );
+}
+
+/**
+ * Next section to open for a "continue" choice. Prefer an explicit mapped
+ * target; if the page default is Submit/end, still advance to the following
+ * section when one exists.
+ */
+export function resolveContinueSectionIndex(
+  application: ParsedApplication,
+  fromSectionIndex: number,
+  preferred: number | null | undefined,
+): number | null {
+  const sections = application.sections || [];
+  if (!sections.length) return null;
+
+  if (
+    typeof preferred === "number" &&
+    preferred >= 0 &&
+    preferred < sections.length &&
+    preferred !== fromSectionIndex
+  ) {
+    return preferred;
+  }
+
+  const section = sections.find((item) => item.index === fromSectionIndex);
+  const defaultNext = section?.defaultNextSectionIndex;
+  if (
+    typeof defaultNext === "number" &&
+    defaultNext >= 0 &&
+    defaultNext < sections.length &&
+    defaultNext !== fromSectionIndex
+  ) {
+    return defaultNext;
+  }
+
+  const sequential = fromSectionIndex + 1;
+  if (sequential < sections.length) return sequential;
+
+  const later = sections.find((item) => item.index > fromSectionIndex);
+  return later?.index ?? null;
 }
 
 function findBranch(
@@ -63,26 +103,47 @@ function findBranch(
 }
 
 function resolveBranchNext(
+  application: ParsedApplication,
   question: FormQuestion,
   value: string,
   fallbackNext: number | null,
 ): number | null {
+  const sectionIndex = question.sectionIndex ?? 0;
   if (looksLikeSubmitOption(value)) return null;
+
   const branch = findBranch(question.optionBranches, value);
-  if (branch) return branch.nextSectionIndex;
-  if (looksLikeContinueOption(value)) return fallbackNext;
+  if (branch) {
+    if (branch.nextSectionIndex === null && !looksLikeContinueOption(value)) {
+      return null;
+    }
+    if (looksLikeContinueOption(value) || branch.nextSectionIndex !== null) {
+      return resolveContinueSectionIndex(
+        application,
+        sectionIndex,
+        branch.nextSectionIndex,
+      );
+    }
+  }
+
+  if (looksLikeContinueOption(value)) {
+    return resolveContinueSectionIndex(application, sectionIndex, fallbackNext);
+  }
+
   // Known branching question with no matching option → do not invent a path.
   if (question.optionBranches?.length) {
     const hasTerminal = question.optionBranches.some(
-      (item) => item.nextSectionIndex === null || looksLikeSubmitOption(item.option),
+      (item) =>
+        item.nextSectionIndex === null || looksLikeSubmitOption(item.option),
     );
     const hasContinue = question.optionBranches.some(
       (item) =>
-        item.nextSectionIndex !== null || looksLikeContinueOption(item.option),
+        (item.nextSectionIndex !== null &&
+          !looksLikeSubmitOption(item.option)) ||
+        looksLikeContinueOption(item.option),
     );
     if (hasTerminal && hasContinue) return null;
   }
-  return fallbackNext;
+  return resolveContinueSectionIndex(application, sectionIndex, fallbackNext);
 }
 
 /** Prefer continue/next over submit/end when drafting an application path. */
@@ -163,10 +224,35 @@ export function resolveFormPath(
         break;
       }
       next = resolveBranchNext(
+        application,
         question,
         value,
         section.defaultNextSectionIndex,
       );
+    }
+
+    // If a continue/next option was chosen but mapped to null (common when the
+    // page default is Submit form), still unlock the following section.
+    if (!waitingOnBranch && (next === null || next === undefined)) {
+      const choseContinue = section.questionEntryIds.some((entryId) => {
+        const value = answerMap.get(entryId)?.trim() || "";
+        return Boolean(value && looksLikeContinueOption(value));
+      });
+      const choseSubmit = section.questionEntryIds.some((entryId) => {
+        const value = answerMap.get(entryId)?.trim() || "";
+        return Boolean(value && looksLikeSubmitOption(value));
+      });
+      const hasBranchingControls = section.questionEntryIds.some((entryId) =>
+        Boolean(byEntry.get(entryId)?.optionBranches?.length),
+      );
+
+      if ((choseContinue && !choseSubmit) || !hasBranchingControls) {
+        next = resolveContinueSectionIndex(
+          application,
+          current,
+          section.defaultNextSectionIndex,
+        );
+      }
     }
 
     if (waitingOnBranch || next === null || next === undefined) break;
@@ -256,6 +342,7 @@ export function nextSectionAfterAnswer(
     (item) => item.index === (question.sectionIndex ?? 0),
   );
   return resolveBranchNext(
+    application,
     question,
     value,
     section?.defaultNextSectionIndex ?? null,
@@ -408,7 +495,8 @@ export function ensureApplicationSections(
  * Make sure every choice option has a branch target. Missing targets fall back
  * to the section's default next page so path changes still unlock later pages.
  * Labels like "Submit form" always end the path; "Proceed to next section"
- * always continues when a later section exists.
+ * always continues when a later section exists — even if the page default is
+ * Submit form.
  */
 export function backfillOptionBranches(
   application: ParsedApplication,
@@ -425,10 +513,13 @@ export function backfillOptionBranches(
     }
     if (!question.options.length) return question;
 
-    const section = sections.find(
-      (item) => item.index === (question.sectionIndex ?? 0),
+    const sectionIndex = question.sectionIndex ?? 0;
+    const section = sections.find((item) => item.index === sectionIndex);
+    const fallbackNext = resolveContinueSectionIndex(
+      application,
+      sectionIndex,
+      section?.defaultNextSectionIndex ?? null,
     );
-    const fallbackNext = section?.defaultNextSectionIndex ?? null;
     const existing = new Map(
       (question.optionBranches || []).map((branch) => [
         normalizeChoice(branch.option),
@@ -444,19 +535,33 @@ export function backfillOptionBranches(
       if (looksLikeContinueOption(option)) {
         return {
           option,
-          nextSectionIndex:
+          nextSectionIndex: resolveContinueSectionIndex(
+            application,
+            sectionIndex,
             prior?.nextSectionIndex ?? fallbackNext,
+          ),
         };
       }
       if (prior) {
-        // Never let a submit-like prior keep a continue target.
-        if (
-          looksLikeSubmitOption(prior.option) ||
-          (prior.nextSectionIndex === null && looksLikeSubmitOption(option))
-        ) {
+        if (looksLikeSubmitOption(prior.option)) {
           return { option, nextSectionIndex: null };
         }
-        return { option, nextSectionIndex: prior.nextSectionIndex };
+        if (prior.nextSectionIndex === null) {
+          // Keep explicit submit targets only when the label is submit-like;
+          // otherwise recover toward the next section when one exists.
+          return {
+            option,
+            nextSectionIndex: fallbackNext,
+          };
+        }
+        return {
+          option,
+          nextSectionIndex: resolveContinueSectionIndex(
+            application,
+            sectionIndex,
+            prior.nextSectionIndex,
+          ),
+        };
       }
       return { option, nextSectionIndex: fallbackNext };
     });
@@ -477,4 +582,66 @@ export function backfillOptionBranches(
     sections.length > 1;
 
   return { ...application, questions, hasBranching };
+}
+
+/**
+ * For AI drafting, pre-select continue/next options so later sections unlock.
+ * Empty branching answers are filled with the continue option. Submit answers
+ * are only rewritten when `rewriteSubmit` is true (initial AI prepare).
+ */
+export function seedContinueNavigationAnswers(
+  application: ParsedApplication,
+  answers: FilledAnswer[],
+  options?: { rewriteSubmit?: boolean },
+): FilledAnswer[] {
+  let working = [...answers];
+  const maxPasses = Math.max(application.sections?.length || 1, 1) + 2;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const path = resolveFormPath(application, working);
+    let changed = false;
+
+    for (const question of path.questions) {
+      if (
+        !question.optionBranches?.length &&
+        !question.options.some(looksLikeContinueOption)
+      ) {
+        continue;
+      }
+      const preferred = preferredNavigationOption(question);
+      if (!preferred) continue;
+
+      const current = working.find(
+        (answer) => answer.entryId === question.entryId,
+      );
+      const value = current?.value?.trim() || "";
+      if (value && !looksLikeSubmitOption(value)) continue;
+      if (value && looksLikeSubmitOption(value) && !options?.rewriteSubmit) {
+        continue;
+      }
+
+      const nextAnswer: FilledAnswer = {
+        ...(current || placeholderAnswer(question)),
+        value: preferred,
+        confidence: current?.confidence || "medium",
+        rationale:
+          current?.rationale ||
+          "Selected continue so the next section can be drafted",
+      };
+
+      if (current) {
+        working = working.map((answer) =>
+          answer.entryId === question.entryId ? nextAnswer : answer,
+        );
+      } else {
+        working = [...working, nextAnswer];
+      }
+      changed = true;
+    }
+
+    working = ensurePathAnswerRows(application, working);
+    if (!changed) break;
+  }
+
+  return working;
 }
