@@ -1,5 +1,6 @@
 import { geminiGenerate, extractJsonArray, getApiKey } from "./gemini";
 import {
+  isOptionalQuestion,
   looksLikeContinueOption,
   looksLikeSubmitOption,
   preferredNavigationOption,
@@ -18,6 +19,35 @@ function firstNonEmpty(...values: Array<string | undefined | null>): string {
     if (trimmed) return trimmed;
   }
   return "";
+}
+
+/** Invented fillers we should never keep, especially on optional fields. */
+function isFakePlaceholderValue(value: string): boolean {
+  const t = value.trim().toLowerCase();
+  if (!t) return false;
+  return (
+    t === "(555) 000-0000" ||
+    t === "555-000-0000" ||
+    t === "5550000000" ||
+    t === "student@example.com" ||
+    t === "you@school.edu" ||
+    t === "high school applicant" ||
+    t === "my high school" ||
+    t === "near opportunity location" ||
+    t === "yes — happy to share more detail"
+  );
+}
+
+function blankOptionalAnswer(_question?: FormQuestion): {
+  value: string;
+  confidence: FilledAnswer["confidence"];
+  rationale: string;
+} {
+  return {
+    value: "",
+    confidence: "high",
+    rationale: "Left blank (optional — nothing in your background to use)",
+  };
 }
 
 function pickOption(
@@ -230,6 +260,7 @@ function heuristicFill(
 ): FilledAnswer[] {
   return questions.map((question) => {
     const title = question.title.toLowerCase();
+    const optional = isOptionalQuestion(question);
     let value = "";
     let confidence: FilledAnswer["confidence"] = "low";
     let rationale = "Drafted for you to edit";
@@ -255,17 +286,29 @@ function heuristicFill(
       title.includes("email") ||
       question.entryId === "emailAddress"
     ) {
-      value = profile.email || "student@example.com";
-      confidence = profile.email ? "high" : "low";
-      rationale = profile.email
-        ? "From your email"
-        : "Placeholder email — replace with yours";
+      if (profile.email.trim()) {
+        value = profile.email.trim();
+        confidence = "high";
+        rationale = "From your email";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = "";
+        confidence = "low";
+        rationale = "Add your email before submitting";
+      }
     } else if (title.includes("phone") || title.includes("mobile")) {
-      value = profile.phone || "(555) 000-0000";
-      confidence = profile.phone ? "high" : "low";
-      rationale = profile.phone
-        ? "From your phone"
-        : "Placeholder phone — replace with yours";
+      if (profile.phone.trim()) {
+        value = profile.phone.trim();
+        confidence = "high";
+        rationale = "From your phone";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = "";
+        confidence = "low";
+        rationale = "Add your phone before submitting";
+      }
     } else if (
       (title.includes("full name") ||
         title === "name" ||
@@ -281,42 +324,86 @@ function heuristicFill(
       if (title.includes("first name") && profile.name) {
         value = profile.name.split(/\s+/)[0] || profile.name;
         confidence = "high";
+        rationale = "From your name";
       } else if (title.includes("last name") && profile.name) {
         const parts = profile.name.trim().split(/\s+/);
         value = parts.length > 1 ? parts.slice(1).join(" ") : profile.name;
         confidence = parts.length > 1 ? "high" : "low";
+        rationale = "From your name";
+      } else if (profile.name.trim()) {
+        value = profile.name.trim();
+        confidence = "high";
+        rationale = "From your name";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
       } else {
-        value = profile.name || "High School Applicant";
-        confidence = profile.name ? "high" : "low";
+        value = "";
+        confidence = "low";
+        rationale = "Add your name before submitting";
       }
-      rationale = profile.name ? "From your name" : "Placeholder name — edit me";
     } else if (title.includes("school") || title.includes("high school")) {
-      value = profile.school || "My High School";
-      confidence = profile.school ? "high" : "low";
-      rationale = profile.school
-        ? "From your school"
-        : "Placeholder school — edit me";
+      if (profile.school.trim()) {
+        value = profile.school.trim();
+        confidence = "high";
+        rationale = "From your school";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = draftNarrative(profile, question, opportunity);
+        confidence = "low";
+        rationale = "Drafted school answer — edit me";
+      }
     } else if (
       (title.includes("grade") || title.includes("year")) &&
       !title.includes("gradua")
     ) {
-      value = profile.grade || "11";
-      confidence = profile.grade ? "high" : "low";
-      rationale = profile.grade ? "From your grade" : "Assumed grade 11 — edit me";
+      if (profile.grade.trim()) {
+        value = profile.grade.trim();
+        confidence = "high";
+        rationale = "From your grade";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = draftNarrative(profile, question, opportunity);
+        confidence = "low";
+        rationale = "Drafted grade answer — edit me";
+      }
     } else if (title.includes("city") || title.includes("location")) {
-      value = profile.city || "Near opportunity location";
-      confidence = profile.city ? "high" : "low";
-      rationale = profile.city ? "From your city" : "Placeholder city — edit me";
+      if (profile.city.trim()) {
+        value = profile.city.trim();
+        confidence = "high";
+        rationale = "From your city";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = draftNarrative(profile, question, opportunity);
+        confidence = "low";
+        rationale = "Drafted location answer — edit me";
+      }
     } else if (title.includes("parent") || title.includes("guardian")) {
-      value = firstNonEmpty(profile.parentName, profile.parentEmail, profile.name);
-      confidence = profile.parentName || profile.parentEmail ? "medium" : "low";
-      rationale = "From parent/guardian fields (edit if needed)";
+      value = firstNonEmpty(profile.parentName, profile.parentEmail);
+      if (value) {
+        confidence = "medium";
+        rationale = "From parent/guardian fields";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = "";
+        confidence = "low";
+        rationale = "Add parent/guardian info before submitting";
+      }
     } else if (title.includes("skill") && question.options.length === 0) {
-      value =
-        profile.skills.join(", ") ||
-        draftNarrative(profile, question, opportunity);
-      confidence = profile.skills.length ? "high" : "low";
-      rationale = profile.skills.length ? "From skills" : "Drafted from interests";
+      if (profile.skills.length) {
+        value = profile.skills.join(", ");
+        confidence = "high";
+        rationale = "From skills";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else {
+        value = draftNarrative(profile, question, opportunity);
+        confidence = "low";
+        rationale = "Drafted from interests";
+      }
     } else if (question.options.length) {
       const navPreferred = preferredNavigationOption(question);
       if (
@@ -330,6 +417,17 @@ function heuristicFill(
         value = navPreferred;
         confidence = "medium";
         rationale = "Continue to the next section so the full application is drafted";
+      } else if (optional) {
+        // Optional choice fields: only select when profile clearly matches.
+        const drafted = draftNarrative(profile, question, opportunity);
+        const coerced = coerceOptionValue(question, drafted, profile);
+        if (coerced.confidence === "high" || coerced.confidence === "medium") {
+          value = coerced.value;
+          confidence = coerced.confidence;
+          rationale = "Best-fit option from your background";
+        } else {
+          ({ value, confidence, rationale } = blankOptionalAnswer(question));
+        }
       } else {
         const drafted = draftNarrative(profile, question, opportunity);
         const coerced = coerceOptionValue(question, drafted, profile);
@@ -343,6 +441,8 @@ function heuristicFill(
         value = fact;
         confidence = "high";
         rationale = "From a custom background fact";
+      } else if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
       } else {
         value = draftNarrative(profile, question, opportunity);
         confidence = firstNonEmpty(profile.bio, profile.activities, profile.resumeText)
@@ -359,26 +459,40 @@ function heuristicFill(
       (question.type === "multiple_choice" ||
         question.type === "dropdown" ||
         question.type === "checkboxes") &&
-      question.options.length
+      question.options.length &&
+      value.trim()
     ) {
       const coerced = coerceOptionValue(question, value, profile);
       value = coerced.value;
-      if (!value) {
-        value =
-          preferredNavigationOption(question) ||
-          question.options.find((option) => !looksLikeSubmitOption(option)) ||
-          question.options[0]!;
-        confidence = "low";
-      } else if (confidence === "high" && coerced.confidence !== "high") {
+      if (confidence === "high" && coerced.confidence !== "high") {
         confidence = coerced.confidence;
       }
     }
 
-    // Final guarantee: never ship an empty non-file answer.
     if (!value.trim()) {
-      value = draftNarrative(profile, question, opportunity);
-      confidence = "low";
-      rationale = "Best-effort draft — edit before submitting";
+      if (optional) {
+        ({ value, confidence, rationale } = blankOptionalAnswer(question));
+      } else if (
+        question.type === "multiple_choice" ||
+        question.type === "dropdown" ||
+        question.type === "checkboxes"
+      ) {
+        value =
+          preferredNavigationOption(question) ||
+          question.options.find((option) => !looksLikeSubmitOption(option)) ||
+          question.options[0] ||
+          "";
+        confidence = "low";
+        rationale = "Best-effort option — confirm before submitting";
+      } else {
+        value = draftNarrative(profile, question, opportunity);
+        confidence = "low";
+        rationale = "Best-effort draft — edit before submitting";
+      }
+    }
+
+    if (optional && isFakePlaceholderValue(value)) {
+      ({ value, confidence, rationale } = blankOptionalAnswer(question));
     }
 
     return {
@@ -403,15 +517,16 @@ Return ONLY a JSON array. Each item must be:
 { "entryId": string, "value": string, "confidence": "high"|"medium"|"low", "rationale": string }
 
 Rules:
-- EVERY non-file question MUST have a non-empty value. Never leave blanks for the student to stare at.
-- Prefer exact facts from the student profile (name, email, school, skills, bio, resume, activities, custom facts).
+- Prefer exact facts from the student profile (name, email, phone, school, skills, bio, resume, activities, custom facts).
+- Optional fields (required=false, or title contains "optional"): if the profile has no real value, set value to "" and explain that it was left blank. Do NOT invent fake phone numbers, emails, names, or placeholder text like "(555) 000-0000".
+- Required non-file questions should have a real draft when possible. Never invent fake contact details (no placeholder phone/email). If a required contact field is missing from the profile, use "" and say it must be added.
 - When writing style samples are provided, match that student's tone, sentence length, vocabulary, and first-person voice in essays and short answers. Do not copy the samples verbatim into unrelated questions.
-- When the profile is thin or a field is not directly answered, still WRITE a plausible draft the student would say — grounded in their grade, school, interests, skills, bio/resume, and the opportunity. Mark confidence "low" (or "medium" if partly grounded).
+- When the profile is thin or a required field is not directly answered, WRITE a plausible draft grounded in their grade, school, interests, skills, bio/resume, and the opportunity. Mark confidence "low" (or "medium" if partly grounded).
 - Tailor essay/short-answer text to EACH question. Do not paste the identical bio into every field.
 - Do not invent specific awards, GPAs, employers, or credentials that are not in the profile. General sincere interest and motivation statements are OK when details are missing.
-- For multiple_choice/dropdown: value MUST be exactly one of the provided options.
+- For multiple_choice/dropdown: value MUST be exactly one of the provided options, or "" when the question is optional and no option fits.
 - For navigation / section questions with options like "Submit form" vs "Proceed to next section" (or Continue / Next section): ALWAYS choose the option that continues to the next section so the full application can be completed. Only choose "Submit form" / end-form if there is no continue option.
-- For checkboxes: join selected options with || (each must be an provided option).
+- For checkboxes: join selected options with || (each must be an provided option), or "" if optional and nothing fits.
 - For file/manualOnly questions: value must be "".
 - Keep answers concise and first-person where appropriate.`;
 
@@ -447,7 +562,7 @@ export async function fillApplicationAnswers(options: {
     system: FILL_SYSTEM_PROMPT,
     user: JSON.stringify({
       instruction:
-        "Fill every field with a real draft answer. Empty values are not allowed except for file uploads.",
+        "Fill fields from the student profile. Leave optional fields blank when the profile has no real value. Never invent fake phone numbers or emails.",
       student: profileToPromptContext(options.profile),
       opportunity,
       formTitle: options.application.title,
@@ -457,6 +572,7 @@ export async function fillApplicationAnswers(options: {
         title: q.title,
         type: q.type,
         required: q.required,
+        optional: isOptionalQuestion(q),
         options: q.options,
         manualOnly: q.manualOnly,
         optionBranches: q.optionBranches,
@@ -500,10 +616,9 @@ export async function fillApplicationAnswers(options: {
     const question = options.application.questions.find(
       (q) => q.entryId === base.entryId,
     );
-    let value =
-      typeof ai?.value === "string" && ai.value.trim()
-        ? ai.value.trim()
-        : base.value;
+    const optional = question ? isOptionalQuestion(question) : false;
+    const aiProvided = typeof ai?.value === "string";
+    let value = aiProvided ? String(ai?.value ?? "").trim() : base.value;
     let confidence: FilledAnswer["confidence"] =
       ai?.confidence === "high" ||
       ai?.confidence === "medium" ||
@@ -512,7 +627,18 @@ export async function fillApplicationAnswers(options: {
         : base.confidence;
     let rationale = ai?.rationale || base.rationale;
 
-    if (question?.options.length) {
+    if (optional && (value === "" || isFakePlaceholderValue(value))) {
+      return {
+        ...base,
+        value: "",
+        confidence: "high" as const,
+        rationale:
+          ai?.rationale?.trim() ||
+          "Left blank (optional — nothing in your background to use)",
+      };
+    }
+
+    if (question?.options.length && value.trim()) {
       const coerced = coerceOptionValue(question, value, options.profile);
       value = coerced.value;
       if (confidence === "high" && coerced.confidence !== "high") {
@@ -521,9 +647,32 @@ export async function fillApplicationAnswers(options: {
     }
 
     if (!value.trim()) {
-      value = base.value;
-      confidence = "low";
-      rationale = base.rationale || "Best-effort draft — edit before submitting";
+      if (optional) {
+        value = "";
+        confidence = "high";
+        rationale =
+          "Left blank (optional — nothing in your background to use)";
+      } else if (base.value.trim() && !isFakePlaceholderValue(base.value)) {
+        value = base.value;
+        confidence = "low";
+        rationale =
+          base.rationale || "Best-effort draft — edit before submitting";
+      } else {
+        value = "";
+        confidence = "low";
+        rationale = base.rationale || "Add this before submitting";
+      }
+    }
+
+    if (isFakePlaceholderValue(value)) {
+      value =
+        optional || !base.value.trim() || isFakePlaceholderValue(base.value)
+          ? ""
+          : base.value;
+      confidence = optional ? "high" : "low";
+      rationale = optional
+        ? "Left blank (optional — nothing in your background to use)"
+        : "Add a real value before submitting";
     }
 
     return {
