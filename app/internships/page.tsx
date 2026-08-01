@@ -10,7 +10,7 @@ export default function InternshipsPage() {
         <h1>Find</h1>
         <p>Browse high school–friendly internships and open applications.</p>
       </header>
-      <InternshipBrowser initialListings={listings} />
+      <InternshipBrowser initialListings={listings} defaultHsOnly />
     </main>
   );
 }
