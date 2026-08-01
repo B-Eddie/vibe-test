@@ -234,7 +234,7 @@ export async function searchInternshipsWithGemini(options: {
   const result = await geminiGenerate({
     search: true,
     system:
-      "You find real, currently open high school internship and pre-college programs. Prefer official program pages. Skip programs whose application deadline has already passed. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
+      "You find real, currently open high school internship and pre-college programs that a high school student (grades 9–12) can apply to and get into. Exclude undergraduate/college-only roles (e.g. typical Shopify/Google university SWE internships that require bachelor enrollment). Prefer official program pages. Skip programs whose application deadline has already passed. Always include a high-school tag when the program is HS-eligible. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
     user: query,
   });
 
