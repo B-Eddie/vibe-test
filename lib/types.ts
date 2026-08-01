@@ -18,6 +18,13 @@ export type CustomFact = {
   value: string;
 };
 
+export type StudentGender =
+  | ""
+  | "male"
+  | "female"
+  | "nonbinary"
+  | "prefer-not";
+
 export type StudentProfile = {
   name: string;
   email: string;
@@ -25,7 +32,14 @@ export type StudentProfile = {
   grade: string;
   school: string;
   city: string;
+  /** Used to hide girls/women-only programs when male. */
+  gender: StudentGender;
   remoteOk: boolean;
+  /**
+   * When false (default), hide women-focused and underrepresented-only
+   * affinity programs that most applicants cannot use.
+   */
+  includeAffinityPrograms: boolean;
   interests: string[];
   skills: string[];
   activities: string;
@@ -167,7 +181,9 @@ export const EMPTY_PROFILE: StudentProfile = {
   grade: "11",
   school: "",
   city: "",
+  gender: "",
   remoteOk: true,
+  includeAffinityPrograms: false,
   interests: [],
   skills: [],
   activities: "",

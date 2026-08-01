@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { enrichListingTags } from "../tags";
 import type { Internship } from "../types";
 
 export function slugId(parts: string[]): string {
@@ -12,16 +13,24 @@ export function normalizeListing(
     Pick<Internship, "title" | "org" | "url" | "source">,
 ): Internship {
   const now = new Date().toISOString();
+  const title = input.title.trim();
+  const org = input.org.trim();
+  const description = (input.description ?? "").trim();
   return {
     id: input.id ?? slugId([input.org, input.title, input.url]),
-    title: input.title.trim(),
-    org: input.org.trim(),
+    title,
+    org,
     url: input.url.trim(),
     location: (input.location ?? "Remote / unspecified").trim(),
     remote: Boolean(input.remote),
     deadline: input.deadline ?? null,
-    tags: input.tags ?? [],
-    description: (input.description ?? "").trim(),
+    tags: enrichListingTags({
+      title,
+      org,
+      description,
+      tags: input.tags ?? [],
+    }),
+    description,
     source: input.source,
     updatedAt: input.updatedAt ?? now,
   };

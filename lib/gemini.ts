@@ -1,7 +1,8 @@
-import type { Internship } from "./types";
+import type { Internship, StudentGender } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
 import { isDeadlinePassed } from "./deadline";
+import { SEARCH_TAG_ALLOWLIST } from "./tags";
 import {
   aiGenerate,
   getGeminiKey,
@@ -243,16 +244,31 @@ export function extractJsonArray(content: string): unknown[] | null {
   }
 }
 
-const SEARCH_SYSTEM = `You find real, currently open high school internship, research, and pre-college programs that a high school student (grades 9–12) can apply to and get into.
+function buildSearchSystem(options: {
+  gender?: StudentGender;
+  includeAffinity?: boolean;
+}): string {
+  const allow = SEARCH_TAG_ALLOWLIST.join(", ");
+  const affinity =
+    options.includeAffinity
+      ? `- You may include women-focused or underrepresented-focused programs when clearly labeled; tag them "women-focused" or "underrepresented".`
+      : options.gender === "male"
+        ? `- Do NOT return girls/women-only programs (e.g. Girls Who Code, Kode With Klossy) or programs whose primary eligibility is underrepresented/minority students only. Prefer open-to-all high school programs.`
+        : `- Prefer open-to-all high school programs. Skip girls/women-only and underrepresented-only affinity programs unless the posting is clearly open to all students.`;
+
+  return `You find real, currently open high school internship, research, and pre-college programs that a high school student (grades 9–12) can apply to and get into.
 
 Rules:
 - Exclude undergraduate/college-only roles (bachelor enrollment required, typical university SWE internships at Shopify/Google/Meta, etc.).
 - Prefer official program or application pages.
 - Skip programs whose application deadline has already passed (unless clearly rolling).
-- Always include a "high-school" tag.
+${affinity}
+- Use ONLY these tags (pick 1–3 field tags): ${allow}.
+- Collapse CS/AI/coding/web/data tags to "programming". Always include "high-school".
 - Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description.
 - Do not invent URLs — only include links you are confident exist from search.
 - Aim for 10–18 distinct items. No markdown.`;
+}
 
 function parseInternshipRows(
   parsed: unknown[],
@@ -289,7 +305,6 @@ function parseInternshipRows(
         tags: [
           ...(Array.isArray(row.tags) ? row.tags.slice(0, 6) : []),
           "high-school",
-          source,
         ],
         description: (row.description || row.title).slice(0, 700),
         source,
@@ -302,6 +317,8 @@ function parseInternshipRows(
 export async function searchInternshipsWithGemini(options: {
   interests?: string[];
   city?: string;
+  gender?: StudentGender;
+  includeAffinity?: boolean;
 }): Promise<{
   listings: Internship[];
   error: string | null;
@@ -309,20 +326,29 @@ export async function searchInternshipsWithGemini(options: {
 }> {
   const interests = options.interests ?? [];
   const city = options.city ?? "";
+  const includeAffinity = Boolean(options.includeAffinity);
   const focus = interests.length
     ? interests.slice(0, 4).join(" ")
-    : "STEM computer science research";
+    : "programming research STEM";
   const place = city ? ` near ${city}` : "";
+  const openOnlyHint = includeAffinity
+    ? ""
+    : " open to all students (not girls-only or underrepresented-only)";
 
   const queries = [
-    `high school student internship programs ${focus}${place} 2026 2027 apply`,
-    `high school summer research internship programs STEM medicine biology engineering 2026 2027 apply`,
-    `paid high school internship technology computer science nonprofit government 2026 2027 apply`,
-    `pre-college STEM programs high school students RSI SAMS COSMOS SIMR apply`,
+    `high school student internship programs ${focus}${place}${openOnlyHint} 2026 2027 apply`,
+    `high school summer research internship programs STEM medicine biology engineering${openOnlyHint} 2026 2027 apply`,
+    `paid high school internship technology programming nonprofit government${openOnlyHint} 2026 2027 apply`,
+    `pre-college STEM programs high school students RSI COSMOS SIMR SSP${openOnlyHint} apply`,
     city
-      ? `high school internships and research programs in ${city} 2026 2027 apply`
-      : `remote virtual high school internship programs coding research 2026 2027 apply`,
+      ? `high school internships and research programs in ${city}${openOnlyHint} 2026 2027 apply`
+      : `remote virtual high school internship programs programming research${openOnlyHint} 2026 2027 apply`,
   ];
+
+  const searchSystem = buildSearchSystem({
+    gender: options.gender,
+    includeAffinity,
+  });
 
   if (!hasAiCredentials()) {
     return {
@@ -337,7 +363,7 @@ export async function searchInternshipsWithGemini(options: {
     queries.map((query) =>
       geminiGenerate({
         search: true,
-        system: SEARCH_SYSTEM,
+        system: searchSystem,
         user: query,
       }),
     ),
@@ -382,6 +408,8 @@ export async function searchInternshipsWithGemini(options: {
 export async function loadInternships(options: {
   interests?: string[];
   city?: string;
+  gender?: StudentGender;
+  includeAffinity?: boolean;
 }): Promise<{
   listings: Internship[];
   liveSearch: boolean;

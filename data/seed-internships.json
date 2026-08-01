@@ -8,10 +8,10 @@
     "remote": true,
     "deadline": "2027-03-15",
     "tags": [
-      "computer-science",
-      "coding",
+      "programming",
       "summer",
-      "high-school"
+      "high-school",
+      "underrepresented"
     ],
     "description": "Three-week intensive introduction to computer science for rising high school seniors from underrepresented backgrounds. Project-based curriculum covering web development, algorithms, and collaboration.",
     "source": "seed",
@@ -26,8 +26,7 @@
     "remote": true,
     "deadline": "2027-02-22",
     "tags": [
-      "space",
-      "earth-science",
+      "science",
       "research",
       "high-school"
     ],
@@ -45,7 +44,6 @@
     "deadline": "2027-01-16",
     "tags": [
       "leadership",
-      "nonprofit",
       "community",
       "paid",
       "high-school"
@@ -63,7 +61,7 @@
     "remote": false,
     "deadline": "2027-01-31",
     "tags": [
-      "computer-science",
+      "programming",
       "engineering",
       "paid",
       "high-school"
@@ -99,7 +97,7 @@
     "remote": false,
     "deadline": "2027-02-10",
     "tags": [
-      "computer-science",
+      "programming",
       "engineering",
       "high-school"
     ],
@@ -116,8 +114,6 @@
     "remote": false,
     "deadline": "2027-03-01",
     "tags": [
-      "history",
-      "museum",
       "arts",
       "research",
       "high-school"
@@ -137,7 +133,7 @@
     "tags": [
       "math",
       "programming",
-      "finance",
+      "business",
       "paid",
       "high-school"
     ],
@@ -156,7 +152,7 @@
     "tags": [
       "research",
       "engineering",
-      "design",
+      "arts",
       "high-school"
     ],
     "description": "Research-focused summer internship pairing high school students with Stanford labs across science, humanities, engineering, and design topics.",
@@ -173,11 +169,10 @@
     "deadline": "2027-04-01",
     "tags": [
       "medicine",
-      "healthcare",
-      "volunteer",
+      "community",
       "high-school"
     ],
-    "description": "Hospital-affiliated program for grades 10–12 combining supervised clinical shadowing, public health projects, and mentorship from residents and research staff.",
+    "description": "Hospital-affiliated program for grades 10\u201312 combining supervised clinical shadowing, public health projects, and mentorship from residents and research staff.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
   },
@@ -190,8 +185,7 @@
     "remote": false,
     "deadline": "2027-03-20",
     "tags": [
-      "computer-science",
-      "web-development",
+      "programming",
       "paid",
       "high-school"
     ],
@@ -208,8 +202,7 @@
     "remote": false,
     "deadline": "2027-02-15",
     "tags": [
-      "earth-science",
-      "climate",
+      "science",
       "research",
       "high-school"
     ],
@@ -227,9 +220,10 @@
     "deadline": "2027-02-01",
     "tags": [
       "engineering",
-      "computer-science",
-      "stem",
-      "high-school"
+      "programming",
+      "science",
+      "high-school",
+      "underrepresented"
     ],
     "description": "Rigorous MIT outreach programs for high school students from underrepresented and underserved backgrounds, covering STEM coursework, projects, and college guidance.",
     "source": "seed",
@@ -245,8 +239,7 @@
     "deadline": "2027-03-01",
     "tags": [
       "engineering",
-      "robotics",
-      "computer-science",
+      "programming",
       "high-school"
     ],
     "description": "Project-based STEM summer institute for high school students with online prep courses and intensive on-campus project challenges in autonomy, cybersecurity, and more.",
@@ -265,7 +258,8 @@
       "math",
       "science",
       "research",
-      "high-school"
+      "high-school",
+      "underrepresented"
     ],
     "description": "Tuition-free summer STEM academy for rising high school seniors from underrepresented backgrounds, with coursework and research at Carnegie Mellon.",
     "source": "seed",
@@ -316,9 +310,8 @@
     "remote": false,
     "deadline": "2027-03-01",
     "tags": [
-      "materials-science",
-      "research",
       "engineering",
+      "research",
       "high-school"
     ],
     "description": "Intensive polymer/materials research program for high school students culminating in posters, papers, and competition-ready projects.",
@@ -354,7 +347,7 @@
     "tags": [
       "engineering",
       "research",
-      "computer-science",
+      "programming",
       "high-school"
     ],
     "description": "Free summer research program for NYC high school students in NYU engineering labs, with workshops and college-prep support.",
@@ -371,7 +364,7 @@
     "deadline": "2026-12-01",
     "tags": [
       "research",
-      "stem",
+      "science",
       "competitive",
       "high-school"
     ],
@@ -388,8 +381,8 @@
     "remote": false,
     "deadline": "2027-02-15",
     "tags": [
-      "astronomy",
-      "biochemistry",
+      "science",
+      "medicine",
       "research",
       "high-school"
     ],
@@ -439,9 +432,8 @@
     "remote": false,
     "deadline": "2027-02-09",
     "tags": [
-      "stem",
-      "engineering",
       "science",
+      "engineering",
       "high-school"
     ],
     "description": "UC residential summer STEM program with cluster-based courses for talented California high school students.",
@@ -457,10 +449,10 @@
     "remote": true,
     "deadline": "2027-03-15",
     "tags": [
-      "computer-science",
-      "coding",
+      "programming",
       "remote",
-      "high-school"
+      "high-school",
+      "women-focused"
     ],
     "description": "Free summer immersion and pathways programs teaching programming, tech careers, and projects for high school girls and non-binary students.",
     "source": "seed",
@@ -475,10 +467,10 @@
     "remote": true,
     "deadline": "2027-03-01",
     "tags": [
-      "computer-science",
-      "coding",
-      "scholarship",
-      "high-school"
+      "programming",
+      "paid",
+      "high-school",
+      "women-focused"
     ],
     "description": "Scholarship coding camps for young women and gender-expansive teens covering web, mobile, and machine learning foundations.",
     "source": "seed",
@@ -493,10 +485,10 @@
     "remote": true,
     "deadline": "2027-03-01",
     "tags": [
-      "ai",
-      "computer-science",
+      "programming",
       "research",
-      "high-school"
+      "high-school",
+      "underrepresented"
     ],
     "description": "AI education and project programs that introduce high school students from underrepresented groups to machine learning and ethical AI.",
     "source": "seed",
@@ -512,7 +504,6 @@
     "deadline": null,
     "tags": [
       "remote",
-      "startup",
       "business",
       "high-school"
     ],
@@ -529,9 +520,9 @@
     "remote": true,
     "deadline": "2027-02-15",
     "tags": [
-      "computer-science",
+      "programming",
       "research",
-      "mentorship",
+      "leadership",
       "high-school"
     ],
     "description": "Free summer research mentorship matching high school students with industry and academic mentors on CS and STEM projects.",
@@ -547,9 +538,8 @@
     "remote": true,
     "deadline": "2027-01-31",
     "tags": [
-      "space",
+      "science",
       "engineering",
-      "stem",
       "high-school"
     ],
     "description": "Interactive online aerospace curriculum for high school students with opportunities for on-site NASA center design challenges.",
@@ -565,13 +555,13 @@
     "remote": true,
     "deadline": "2027-02-27",
     "tags": [
-      "space",
+      "science",
       "engineering",
       "research",
       "paid",
       "high-school"
     ],
-    "description": "NASA internship portal including high school–eligible STEM placements across centers; filter for high school education level when applying.",
+    "description": "NASA internship portal including high school\u2013eligible STEM placements across centers; filter for high school education level when applying.",
     "source": "seed",
     "updatedAt": "2026-08-01T00:00:00.000Z"
   },
@@ -585,7 +575,7 @@
     "deadline": "2027-02-15",
     "tags": [
       "research",
-      "stem",
+      "science",
       "paid",
       "high-school"
     ],
@@ -604,7 +594,7 @@
     "tags": [
       "leadership",
       "policy",
-      "stem",
+      "science",
       "high-school"
     ],
     "description": "Academic summer sessions for high school students exploring politics, law, STEM, and global affairs through seminars and capstone projects.",
@@ -620,9 +610,7 @@
     "remote": true,
     "deadline": "2027-02-01",
     "tags": [
-      "entrepreneurship",
       "business",
-      "startup",
       "high-school"
     ],
     "description": "Entrepreneurship accelerator for high school students who found startups, build MVPs, and pitch with mentorship from founders and operators.",
@@ -638,9 +626,8 @@
     "remote": true,
     "deadline": "2027-03-01",
     "tags": [
-      "computer-science",
-      "data-science",
-      "mentorship",
+      "programming",
+      "leadership",
       "high-school"
     ],
     "description": "Two Sigma outreach and mentorship programs introducing high school students to data science, coding, and quantitative careers.",
@@ -656,9 +643,8 @@
     "remote": false,
     "deadline": null,
     "tags": [
-      "physics",
+      "science",
       "research",
-      "stem",
       "high-school"
     ],
     "description": "Particle physics research and data analysis opportunities for high school students and teachers through university-hosted QuarkNet centers.",
@@ -693,7 +679,7 @@
     "deadline": "2027-02-01",
     "tags": [
       "biology",
-      "genomics",
+      "medicine",
       "research",
       "high-school"
     ],
@@ -711,9 +697,10 @@
     "deadline": "2027-01-22",
     "tags": [
       "biology",
-      "computer-science",
+      "programming",
       "research",
-      "high-school"
+      "high-school",
+      "underrepresented"
     ],
     "description": "Six-week genomics and biomedical research program for local high school students from underrepresented backgrounds.",
     "source": "seed",
@@ -746,9 +733,8 @@
     "remote": false,
     "deadline": null,
     "tags": [
-      "aviation",
       "engineering",
-      "stem",
+      "science",
       "high-school"
     ],
     "description": "Week-long aviation and aerospace academies for middle and high school students exploring careers as pilots, engineers, and controllers.",
@@ -765,11 +751,10 @@
     "deadline": "2027-02-28",
     "tags": [
       "engineering",
-      "aerospace",
       "paid",
       "high-school"
     ],
-    "description": "Paid high school internship postings on Boeing careers (search “high school”) in engineering support, manufacturing, and business operations.",
+    "description": "Paid high school internship postings on Boeing careers (search \u201chigh school\u201d) in engineering support, manufacturing, and business operations.",
     "source": "seed",
     "updatedAt": "2026-08-01T00:00:00.000Z"
   },
@@ -783,7 +768,6 @@
     "deadline": "2027-02-15",
     "tags": [
       "engineering",
-      "aerospace",
       "paid",
       "high-school"
     ],
@@ -800,9 +784,8 @@
     "remote": false,
     "deadline": null,
     "tags": [
-      "government",
-      "leadership",
       "policy",
+      "leadership",
       "high-school"
     ],
     "description": "Residential page programs for high school juniors assisting the House or Senate while attending school in Washington, D.C.",
