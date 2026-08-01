@@ -4,20 +4,34 @@ import { getSeedInternships } from "./seed";
 import { isDeadlinePassed } from "./deadline";
 
 /**
- * Prefer current Gemini Flash models. gemini-2.0-flash / 1.5 are shut down
- * or free-tier-unavailable (limit: 0) on many keys — skip them.
- * GEMINI_MODEL overrides the first choice when set.
+ * Prefer Gemini 3.5 Flash. Older 2.x flash / flash-lite IDs are shut down
+ * for many new keys — never fall back to them.
+ * GEMINI_MODEL overrides the first choice when set (unless it is a retired ID).
  */
-const DEFAULT_MODELS = [
-  process.env.GEMINI_MODEL?.trim(),
-  "gemini-flash-latest",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-2.5-flash",
+const RETIRED_MODELS = new Set([
   "gemini-2.5-flash-lite",
-].filter((value): value is string => Boolean(value));
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+]);
 
-export const GEMINI_MODEL = DEFAULT_MODELS[0] || "gemini-flash-latest";
+function preferredModels(): string[] {
+  const override = process.env.GEMINI_MODEL?.trim();
+  const models = [
+    override && !RETIRED_MODELS.has(override) ? override : null,
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-preview",
+    "gemini-flash-latest",
+    "gemini-3.6-flash",
+  ].filter((value): value is string => Boolean(value));
+  return [...new Set(models)];
+}
+
+const DEFAULT_MODELS = preferredModels();
+
+export const GEMINI_MODEL = DEFAULT_MODELS[0] || "gemini-3.5-flash";
 
 export function getApiKey(): string | undefined {
   const key =
