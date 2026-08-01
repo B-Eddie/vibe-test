@@ -6,6 +6,7 @@ export default function ApplyPage() {
     <main>
       <header className="page-header">
         <h1>Apply</h1>
+        <p>Paste a form link, review drafted answers, then autofill.</p>
       </header>
       <Suspense fallback={<p className="provider-note">Loading…</p>}>
         <ApplyWorkspace />

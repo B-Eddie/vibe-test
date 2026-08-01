@@ -14,9 +14,17 @@ export default async function InternshipDetailPage({ params }: Props) {
     <main>
       <header className="page-header">
         <p>
-          <Link href="/internships">← Back to internships</Link>
+          <Link href="/internships">← Find</Link>
         </p>
-        <h1>Listing detail</h1>
+        <h1>{internship?.title || "Listing"}</h1>
+        {internship ? (
+          <p>
+            {internship.org}
+            {internship.location ? ` · ${internship.location}` : ""}
+          </p>
+        ) : (
+          <p>This listing could not be found.</p>
+        )}
       </header>
       <InternshipDetail internship={internship} />
     </main>
