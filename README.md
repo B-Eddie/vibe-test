@@ -18,8 +18,8 @@ Personal Next.js app for high school students: discover opportunities and apply 
 
 ```bash
 GEMINI_API_KEY=your_key_here
-# optional (defaults to gemini-flash-latest → 3.6 / 3.5 / 2.5 flash):
-# GEMINI_MODEL=gemini-3.6-flash
+# optional (defaults to gemini-3.5-flash):
+# GEMINI_MODEL=gemini-3.5-flash
 ```
 
 3. Run:
@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-Deploy on Vercel with `GEMINI_API_KEY` (and optional `GEMINI_MODEL`). If Production still has `GEMINI_MODEL=gemini-2.0-flash`, remove it — that model is shut down / free-tier unavailable.
+Deploy on Vercel with `GEMINI_API_KEY` (and optional `GEMINI_MODEL`). If Production still has `GEMINI_MODEL=gemini-2.5-flash-lite` or another retired 2.x model, clear it or set `GEMINI_MODEL=gemini-3.5-flash`.
 
 ## How universal autofill works
 
