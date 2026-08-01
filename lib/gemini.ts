@@ -218,31 +218,21 @@ export function extractJsonArray(content: string): unknown[] | null {
   }
 }
 
-function buildSearchQuery(interests: string[], city: string): string {
-  const focus = interests.length
-    ? interests.slice(0, 4).join(" ")
-    : "STEM computer science research";
-  const place = city ? ` near ${city}` : "";
-  return `high school student internship programs ${focus}${place} 2026 apply`;
-}
+const SEARCH_SYSTEM = `You find real, currently open high school internship, research, and pre-college programs that a high school student (grades 9–12) can apply to and get into.
 
-export async function searchInternshipsWithGemini(options: {
-  interests?: string[];
-  city?: string;
-}): Promise<Internship[]> {
-  const query = buildSearchQuery(options.interests ?? [], options.city ?? "");
-  const result = await geminiGenerate({
-    search: true,
-    system:
-      "You find real, currently open high school internship and pre-college programs that a high school student (grades 9–12) can apply to and get into. Exclude undergraduate/college-only roles (e.g. typical Shopify/Google university SWE internships that require bachelor enrollment). Prefer official program pages. Skip programs whose application deadline has already passed. Always include a high-school tag when the program is HS-eligible. Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description. Do not invent URLs — only include links you are confident exist from search. Max 12 items. No markdown.",
-    user: query,
-  });
+Rules:
+- Exclude undergraduate/college-only roles (bachelor enrollment required, typical university SWE internships at Shopify/Google/Meta, etc.).
+- Prefer official program or application pages.
+- Skip programs whose application deadline has already passed (unless clearly rolling).
+- Always include a "high-school" tag.
+- Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description.
+- Do not invent URLs — only include links you are confident exist from search.
+- Aim for 10–18 distinct items. No markdown.`;
 
-  if (!result.text) return [];
-  const parsed = extractJsonArray(result.text);
-  if (!parsed) return [];
-
-  const now = new Date().toISOString();
+function parseInternshipRows(
+  parsed: unknown[],
+  now: string,
+): Internship[] {
   return parsed
     .map((item) => {
       if (!item || typeof item !== "object") return null;
@@ -283,13 +273,104 @@ export async function searchInternshipsWithGemini(options: {
     .filter((item): item is Internship => Boolean(item));
 }
 
+export async function searchInternshipsWithGemini(options: {
+  interests?: string[];
+  city?: string;
+}): Promise<{
+  listings: Internship[];
+  error: string | null;
+  queries: number;
+}> {
+  const interests = options.interests ?? [];
+  const city = options.city ?? "";
+  const focus = interests.length
+    ? interests.slice(0, 4).join(" ")
+    : "STEM computer science research";
+  const place = city ? ` near ${city}` : "";
+
+  const queries = [
+    `high school student internship programs ${focus}${place} 2026 2027 apply`,
+    `high school summer research internship programs STEM medicine biology engineering 2026 2027 apply`,
+    `paid high school internship technology computer science nonprofit government 2026 2027 apply`,
+    `pre-college STEM programs high school students RSI SAMS COSMOS SIMR apply`,
+    city
+      ? `high school internships and research programs in ${city} 2026 2027 apply`
+      : `remote virtual high school internship programs coding research 2026 2027 apply`,
+  ];
+
+  if (!getApiKey()) {
+    return {
+      listings: [],
+      error: "GEMINI_API_KEY is not set in this deployment",
+      queries: 0,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const settled = await Promise.allSettled(
+    queries.map((query) =>
+      geminiGenerate({
+        search: true,
+        system: SEARCH_SYSTEM,
+        user: query,
+      }),
+    ),
+  );
+
+  const batches: Internship[][] = [];
+  const errors: string[] = [];
+  let successQueries = 0;
+
+  for (const result of settled) {
+    if (result.status === "rejected") {
+      errors.push(
+        result.reason instanceof Error
+          ? result.reason.message
+          : "Search request failed",
+      );
+      continue;
+    }
+    const payload = result.value;
+    if (!payload.text) {
+      if (payload.error) errors.push(payload.error);
+      continue;
+    }
+    const parsed = extractJsonArray(payload.text);
+    if (!parsed?.length) {
+      errors.push("Gemini returned no parseable internship list");
+      continue;
+    }
+    successQueries += 1;
+    batches.push(parseInternshipRows(parsed, now));
+  }
+
+  return {
+    listings: mergeListings(batches),
+    error: successQueries ? null : errors[0] || "Live search returned no results",
+    queries: successQueries,
+  };
+}
+
 export async function loadInternships(options: {
   interests?: string[];
   city?: string;
-}): Promise<{ listings: Internship[]; liveSearch: boolean }> {
+}): Promise<{
+  listings: Internship[];
+  liveSearch: boolean;
+  liveCount: number;
+  error: string | null;
+}> {
   const discovered = await searchInternshipsWithGemini(options);
-  const listings = mergeListings([getSeedInternships(), discovered]);
-  return { listings, liveSearch: discovered.length > 0 };
+  const listings = mergeListings([
+    getSeedInternships(),
+    discovered.listings,
+  ]);
+  return {
+    listings,
+    liveSearch: discovered.listings.length > 0,
+    liveCount: discovered.listings.length,
+    error: discovered.error,
+  };
 }
 
 export async function probeGemini(): Promise<{

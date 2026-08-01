@@ -45,6 +45,9 @@ export function InternshipCard({ match }: { match: MatchResult }) {
           <span className="score-chip">{score}%</span>
           <span>{internship.remote ? "Remote" : "On-site"}</span>
           <span>{formatDeadline(internship.deadline)}</span>
+          <span className="source-chip">
+            {internship.source === "gemini-search" ? "Live" : "Curated"}
+          </span>
         </div>
         <h3>
           <Link href={`/internships/${internship.id}`}>{internship.title}</Link>

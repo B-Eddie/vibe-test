@@ -42,7 +42,7 @@
     "url": "https://about.bankofamerica.com/en/making-an-impact/student-leaders",
     "location": "Local community nonprofits across the US",
     "remote": false,
-    "deadline": "2026-01-16",
+    "deadline": "2027-01-16",
     "tags": [
       "leadership",
       "nonprofit",
@@ -149,7 +149,7 @@
     "id": "seed-stanford-shtem",
     "title": "SHTEM Summer Internship",
     "org": "Stanford University",
-    "url": "https://stanford.edu/",
+    "url": "https://shtem.stanford.edu/",
     "location": "Stanford, CA / remote research pods",
     "remote": true,
     "deadline": "2027-02-28",
@@ -177,7 +177,7 @@
       "volunteer",
       "high-school"
     ],
-    "description": "Hospital-affiliated program for grades 10\u201312 combining supervised clinical shadowing, public health projects, and mentorship from residents and research staff.",
+    "description": "Hospital-affiliated program for grades 10–12 combining supervised clinical shadowing, public health projects, and mentorship from residents and research staff.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
   },
@@ -216,5 +216,597 @@
     "description": "NOAA education pathways and high school research experiences focused on climate, oceans, weather, and environmental monitoring.",
     "source": "seed",
     "updatedAt": "2026-07-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-mit-mites",
+    "title": "MITES Semester / Summer",
+    "org": "MIT Office of Engineering Outreach Programs",
+    "url": "https://oeop.mit.edu/programs/mites",
+    "location": "Cambridge, MA / hybrid options by program",
+    "remote": false,
+    "deadline": "2027-02-01",
+    "tags": [
+      "engineering",
+      "computer-science",
+      "stem",
+      "high-school"
+    ],
+    "description": "Rigorous MIT outreach programs for high school students from underrepresented and underserved backgrounds, covering STEM coursework, projects, and college guidance.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-mit-beaver-works",
+    "title": "Beaver Works Summer Institute",
+    "org": "MIT Lincoln Laboratory",
+    "url": "https://beaverworks.ll.mit.edu/CMS/bw/bwsi",
+    "location": "Cambridge, MA + online courses",
+    "remote": true,
+    "deadline": "2027-03-01",
+    "tags": [
+      "engineering",
+      "robotics",
+      "computer-science",
+      "high-school"
+    ],
+    "description": "Project-based STEM summer institute for high school students with online prep courses and intensive on-campus project challenges in autonomy, cybersecurity, and more.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-cmu-sams",
+    "title": "Summer Academy for Math and Science (SAMS)",
+    "org": "Carnegie Mellon University",
+    "url": "https://www.cmu.edu/pre-college/academic-programs/sams.html",
+    "location": "Pittsburgh, PA",
+    "remote": false,
+    "deadline": "2027-03-01",
+    "tags": [
+      "math",
+      "science",
+      "research",
+      "high-school"
+    ],
+    "description": "Tuition-free summer STEM academy for rising high school seniors from underrepresented backgrounds, with coursework and research at Carnegie Mellon.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-stanford-simr",
+    "title": "Stanford Institutes of Medicine Summer Research (SIMR)",
+    "org": "Stanford University",
+    "url": "https://simr.stanford.edu/",
+    "location": "Stanford, CA",
+    "remote": false,
+    "deadline": "2027-02-22",
+    "tags": [
+      "medicine",
+      "biology",
+      "research",
+      "high-school"
+    ],
+    "description": "Eight-week biomedical research internship placing high school students in Stanford Medicine labs with mentorship and a culminating symposium.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-ucsb-rmp",
+    "title": "Research Mentorship Program (RMP)",
+    "org": "UC Santa Barbara",
+    "url": "https://www.summer.ucsb.edu/programs/research-mentorship-program-rmp",
+    "location": "Santa Barbara, CA",
+    "remote": false,
+    "deadline": "2027-03-15",
+    "tags": [
+      "research",
+      "science",
+      "engineering",
+      "high-school"
+    ],
+    "description": "Summer research mentorship pairing high school students with UCSB faculty and graduate mentors across science and engineering fields.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-stony-brook-garcia",
+    "title": "Garcia Summer Scholars",
+    "org": "Stony Brook University",
+    "url": "https://www.stonybrook.edu/commcms/garcia/",
+    "location": "Stony Brook, NY",
+    "remote": false,
+    "deadline": "2027-03-01",
+    "tags": [
+      "materials-science",
+      "research",
+      "engineering",
+      "high-school"
+    ],
+    "description": "Intensive polymer/materials research program for high school students culminating in posters, papers, and competition-ready projects.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-stony-brook-simons",
+    "title": "Simons Summer Research Program",
+    "org": "Stony Brook University",
+    "url": "https://www.stonybrook.edu/simons/",
+    "location": "Stony Brook, NY",
+    "remote": false,
+    "deadline": "2027-02-01",
+    "tags": [
+      "research",
+      "science",
+      "math",
+      "high-school"
+    ],
+    "description": "Selective research internship matching high school students with Stony Brook faculty mentors in science, math, and engineering.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-nyu-arise",
+    "title": "ARISE (Applied Research Innovations in Science and Engineering)",
+    "org": "NYU Tandon",
+    "url": "https://engineering.nyu.edu/academics/programs/k12-stem-education/arise",
+    "location": "Brooklyn, NY",
+    "remote": false,
+    "deadline": "2027-03-01",
+    "tags": [
+      "engineering",
+      "research",
+      "computer-science",
+      "high-school"
+    ],
+    "description": "Free summer research program for NYC high school students in NYU engineering labs, with workshops and college-prep support.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-rsi",
+    "title": "Research Science Institute (RSI)",
+    "org": "Center for Excellence in Education / MIT",
+    "url": "https://www.cee.org/programs/rsi",
+    "location": "Cambridge, MA",
+    "remote": false,
+    "deadline": "2026-12-01",
+    "tags": [
+      "research",
+      "stem",
+      "competitive",
+      "high-school"
+    ],
+    "description": "Highly selective free summer research program combining STEM coursework with mentored research projects at MIT and nearby labs.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-ssp",
+    "title": "Summer Science Program (SSP)",
+    "org": "Summer Science Program",
+    "url": "https://www.summerscience.org/",
+    "location": "Multiple US campuses",
+    "remote": false,
+    "deadline": "2027-02-15",
+    "tags": [
+      "astronomy",
+      "biochemistry",
+      "research",
+      "high-school"
+    ],
+    "description": "Immersive residential research program where teams of high school students complete authentic astrophysics or biochemistry projects.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-promys",
+    "title": "PROMYS",
+    "org": "Boston University",
+    "url": "https://promys.org/",
+    "location": "Boston, MA",
+    "remote": false,
+    "deadline": "2027-03-01",
+    "tags": [
+      "math",
+      "research",
+      "high-school"
+    ],
+    "description": "Six-week number theory program for mathematically ambitious high school students, emphasizing exploration and proof.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-ross-math",
+    "title": "Ross Mathematics Program",
+    "org": "Ross Mathematics Foundation",
+    "url": "https://rossprogram.org/",
+    "location": "Otterbein University, OH / other sites",
+    "remote": false,
+    "deadline": "2027-03-15",
+    "tags": [
+      "math",
+      "high-school"
+    ],
+    "description": "Intensive residential mathematics program focused on number theory and creative problem solving for high school students.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-cosmos",
+    "title": "COSMOS",
+    "org": "University of California",
+    "url": "https://cosmos.ucsc.edu/",
+    "location": "Multiple UC campuses",
+    "remote": false,
+    "deadline": "2027-02-09",
+    "tags": [
+      "stem",
+      "engineering",
+      "science",
+      "high-school"
+    ],
+    "description": "UC residential summer STEM program with cluster-based courses for talented California high school students.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-girls-who-code",
+    "title": "Girls Who Code Summer Programs",
+    "org": "Girls Who Code",
+    "url": "https://girlswhocode.com/programs/summer-immersion-program",
+    "location": "Virtual and select cities",
+    "remote": true,
+    "deadline": "2027-03-15",
+    "tags": [
+      "computer-science",
+      "coding",
+      "remote",
+      "high-school"
+    ],
+    "description": "Free summer immersion and pathways programs teaching programming, tech careers, and projects for high school girls and non-binary students.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-kode-with-klossy",
+    "title": "Kode With Klossy",
+    "org": "Kode With Klossy",
+    "url": "https://www.kodewithklossy.com/",
+    "location": "Virtual and in-person scholarships",
+    "remote": true,
+    "deadline": "2027-03-01",
+    "tags": [
+      "computer-science",
+      "coding",
+      "scholarship",
+      "high-school"
+    ],
+    "description": "Scholarship coding camps for young women and gender-expansive teens covering web, mobile, and machine learning foundations.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-ai4all",
+    "title": "AI4ALL Summer Programs",
+    "org": "AI4ALL",
+    "url": "https://ai-4-all.org/programs/",
+    "location": "University partners / virtual",
+    "remote": true,
+    "deadline": "2027-03-01",
+    "tags": [
+      "ai",
+      "computer-science",
+      "research",
+      "high-school"
+    ],
+    "description": "AI education and project programs that introduce high school students from underrepresented groups to machine learning and ethical AI.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-ladder-internships",
+    "title": "Ladder Internships",
+    "org": "Ladder",
+    "url": "https://www.ladderinternships.com/",
+    "location": "Remote",
+    "remote": true,
+    "deadline": null,
+    "tags": [
+      "remote",
+      "startup",
+      "business",
+      "high-school"
+    ],
+    "description": "Remote internship placements for high school and early college students with startups and nonprofits across technology, business, and research roles.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-spark-sip",
+    "title": "SPARK Summer Mentorship Program",
+    "org": "SPARK SIP",
+    "url": "https://sparkip.org/",
+    "location": "Bay Area / remote mentorship",
+    "remote": true,
+    "deadline": "2027-02-15",
+    "tags": [
+      "computer-science",
+      "research",
+      "mentorship",
+      "high-school"
+    ],
+    "description": "Free summer research mentorship matching high school students with industry and academic mentors on CS and STEM projects.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-nasa-has",
+    "title": "NASA High School Aerospace Scholars (HAS)",
+    "org": "NASA",
+    "url": "https://www.nasa.gov/stem-content/high-school-aerospace-scholars/",
+    "location": "Online + select NASA center experiences",
+    "remote": true,
+    "deadline": "2027-01-31",
+    "tags": [
+      "space",
+      "engineering",
+      "stem",
+      "high-school"
+    ],
+    "description": "Interactive online aerospace curriculum for high school students with opportunities for on-site NASA center design challenges.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-nasa-ostem",
+    "title": "NASA OSTEM Internships (High School)",
+    "org": "NASA",
+    "url": "https://intern.nasa.gov/",
+    "location": "NASA centers nationwide / some remote",
+    "remote": true,
+    "deadline": "2027-02-27",
+    "tags": [
+      "space",
+      "engineering",
+      "research",
+      "paid",
+      "high-school"
+    ],
+    "description": "NASA internship portal including high school–eligible STEM placements across centers; filter for high school education level when applying.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-clark-scholars",
+    "title": "Clark Scholars Program",
+    "org": "Texas Tech University",
+    "url": "https://www.depts.ttu.edu/honors/academicsandenrichment/clarkscholars/",
+    "location": "Lubbock, TX",
+    "remote": false,
+    "deadline": "2027-02-15",
+    "tags": [
+      "research",
+      "stem",
+      "paid",
+      "high-school"
+    ],
+    "description": "Free intensive summer research program for high school juniors with faculty mentorship, seminars, and a research symposium.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-yale-yyg",
+    "title": "Yale Young Global Scholars",
+    "org": "Yale University",
+    "url": "https://globalscholars.yale.edu/",
+    "location": "New Haven, CT",
+    "remote": false,
+    "deadline": "2027-01-10",
+    "tags": [
+      "leadership",
+      "policy",
+      "stem",
+      "high-school"
+    ],
+    "description": "Academic summer sessions for high school students exploring politics, law, STEM, and global affairs through seminars and capstone projects.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-launchx",
+    "title": "LaunchX Entrepreneurship Program",
+    "org": "LaunchX",
+    "url": "https://www.launchx.com/",
+    "location": "Multiple campuses / online",
+    "remote": true,
+    "deadline": "2027-02-01",
+    "tags": [
+      "entrepreneurship",
+      "business",
+      "startup",
+      "high-school"
+    ],
+    "description": "Entrepreneurship accelerator for high school students who found startups, build MVPs, and pitch with mentorship from founders and operators.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-two-sigma-elevate",
+    "title": "Elevate Mentorship / High School Outreach",
+    "org": "Two Sigma",
+    "url": "https://www.twosigma.com/careers/elevate/",
+    "location": "New York, NY / remote options by year",
+    "remote": true,
+    "deadline": "2027-03-01",
+    "tags": [
+      "computer-science",
+      "data-science",
+      "mentorship",
+      "high-school"
+    ],
+    "description": "Two Sigma outreach and mentorship programs introducing high school students to data science, coding, and quantitative careers.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-quarknet",
+    "title": "QuarkNet High School Research Centers",
+    "org": "QuarkNet / NSF",
+    "url": "https://quarknet.org/",
+    "location": "Centers across the US",
+    "remote": false,
+    "deadline": null,
+    "tags": [
+      "physics",
+      "research",
+      "stem",
+      "high-school"
+    ],
+    "description": "Particle physics research and data analysis opportunities for high school students and teachers through university-hosted QuarkNet centers.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-fred-hutch-path",
+    "title": "PATH Internship / High School Programs",
+    "org": "Fred Hutchinson Cancer Center",
+    "url": "https://www.fredhutch.org/en/about/education-outreach.html",
+    "location": "Seattle, WA",
+    "remote": false,
+    "deadline": "2027-03-15",
+    "tags": [
+      "biology",
+      "medicine",
+      "research",
+      "high-school"
+    ],
+    "description": "Education and internship pathways exposing high school students to biomedical research and careers at Fred Hutch.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-jackson-lab",
+    "title": "High School Summer Student Program",
+    "org": "The Jackson Laboratory",
+    "url": "https://www.jax.org/education-and-learning/high-school-students-and-undergraduates",
+    "location": "Bar Harbor, ME / Farmington, CT",
+    "remote": false,
+    "deadline": "2027-02-01",
+    "tags": [
+      "biology",
+      "genomics",
+      "research",
+      "high-school"
+    ],
+    "description": "Summer research experiences introducing high school students to genetics and genomics research in JAX laboratories.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-broad-bssp",
+    "title": "Broad Summer Scholars Program",
+    "org": "Broad Institute",
+    "url": "https://www.broadinstitute.org/bssp",
+    "location": "Cambridge, MA",
+    "remote": false,
+    "deadline": "2027-01-22",
+    "tags": [
+      "biology",
+      "computer-science",
+      "research",
+      "high-school"
+    ],
+    "description": "Six-week genomics and biomedical research program for local high school students from underrepresented backgrounds.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-seattle-childrens",
+    "title": "High School Research & STEM Pathways",
+    "org": "Seattle Children's Research Institute",
+    "url": "https://www.seattlechildrens.org/research/centers-programs/science-education-department/",
+    "location": "Seattle, WA",
+    "remote": false,
+    "deadline": "2027-03-01",
+    "tags": [
+      "medicine",
+      "biology",
+      "research",
+      "high-school"
+    ],
+    "description": "Science education and research pathway programs that introduce high school students to pediatric and biomedical research careers.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-faa-ace",
+    "title": "Aviation Career Education (ACE) Academy",
+    "org": "FAA",
+    "url": "https://www.faa.gov/education/student_resources/ace_camps",
+    "location": "Sites nationwide",
+    "remote": false,
+    "deadline": null,
+    "tags": [
+      "aviation",
+      "engineering",
+      "stem",
+      "high-school"
+    ],
+    "description": "Week-long aviation and aerospace academies for middle and high school students exploring careers as pilots, engineers, and controllers.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-boeing-hs",
+    "title": "Boeing High School Internships",
+    "org": "Boeing",
+    "url": "https://jobs.boeing.com/",
+    "location": "Select US sites",
+    "remote": false,
+    "deadline": "2027-02-28",
+    "tags": [
+      "engineering",
+      "aerospace",
+      "paid",
+      "high-school"
+    ],
+    "description": "Paid high school internship postings on Boeing careers (search “high school”) in engineering support, manufacturing, and business operations.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-lockheed-hs",
+    "title": "Lockheed Martin High School Internships",
+    "org": "Lockheed Martin",
+    "url": "https://www.lockheedmartinjobs.com/students",
+    "location": "Select US sites",
+    "remote": false,
+    "deadline": "2027-02-15",
+    "tags": [
+      "engineering",
+      "aerospace",
+      "paid",
+      "high-school"
+    ],
+    "description": "High school internship opportunities in engineering, manufacturing, and corporate functions at select Lockheed Martin locations.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
+  },
+  {
+    "id": "seed-congressional-page",
+    "title": "U.S. House Page Program / Senate Page",
+    "org": "U.S. Congress",
+    "url": "https://www.house.gov/educators-and-students/page-program",
+    "location": "Washington, D.C.",
+    "remote": false,
+    "deadline": null,
+    "tags": [
+      "government",
+      "leadership",
+      "policy",
+      "high-school"
+    ],
+    "description": "Residential page programs for high school juniors assisting the House or Senate while attending school in Washington, D.C.",
+    "source": "seed",
+    "updatedAt": "2026-08-01T00:00:00.000Z"
   }
 ]
