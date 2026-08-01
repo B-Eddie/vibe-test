@@ -54,9 +54,7 @@ export function InternshipDetail({
           <span>{internship.remote ? "Remote" : "On-site"}</span>
           {internship.deadline ? <span>Deadline {internship.deadline}</span> : null}
         </div>
-        <p className="desc-line" style={{ WebkitLineClamp: "unset" as unknown as number }}>
-          {internship.description}
-        </p>
+        <p className="desc-full">{internship.description}</p>
         <div className="tag-row">
           {internship.tags.map((tag) => (
             <span key={tag}>{tag}</span>

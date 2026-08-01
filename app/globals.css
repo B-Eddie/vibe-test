@@ -576,6 +576,14 @@ textarea {
   margin: 0.35rem 0 0;
 }
 
+.desc-full {
+  margin: 0.15rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  max-width: 48rem;
+}
+
 .reason-list {
   margin: 0.65rem 0 0;
   padding-left: 1.05rem;
