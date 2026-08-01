@@ -2,7 +2,7 @@
 
 Personal Next.js app for high school students: discover opportunities and apply on **any** platform from one desk.
 
-AI calls try **Hack Club AI** first (`HC_API_KEY`), then fall back to **Gemini** (`GEMINI_API_KEY`).
+AI drafting tries **Hack Club AI** first (`HC_API_KEY`), then falls back to **Gemini** (`GEMINI_API_KEY`). Find live search uses Gemini only (Hack Club has no web-search API).
 
 ## Flow
 
@@ -21,10 +21,10 @@ AI calls try **Hack Club AI** first (`HC_API_KEY`), then fall back to **Gemini**
 
 ```bash
 HC_API_KEY=your_hack_club_key
-# optional model override (default: qwen/qwen3-32b):
-# HC_MODEL=qwen/qwen3-32b
+# optional model override (default: inclusionai/ling-3.0-flash:free):
+# HC_MODEL=inclusionai/ling-3.0-flash:free
 
-# optional Gemini fallback:
+# Gemini fallback + required for Find live search:
 # GEMINI_API_KEY=your_gemini_key
 # GEMINI_MODEL=gemini-3.5-flash
 ```
@@ -36,7 +36,7 @@ npm install
 npm run dev
 ```
 
-Deploy on Vercel with `HC_API_KEY` (and optional `GEMINI_API_KEY`).
+Deploy on Vercel with `HC_API_KEY` and `GEMINI_API_KEY` (Gemini powers live Find search).
 
 ## How universal autofill works
 

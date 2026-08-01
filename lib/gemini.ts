@@ -367,9 +367,7 @@ export async function searchInternshipsWithGemini(options: {
       continue;
     }
     successQueries += 1;
-    const source =
-      payload.provider === "hackclub" ? "hackclub-search" : "gemini-search";
-    batches.push(parseInternshipRows(parsed, now, source));
+    batches.push(parseInternshipRows(parsed, now, "gemini-search"));
   }
 
   return {
