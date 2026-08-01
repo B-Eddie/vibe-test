@@ -1017,7 +1017,7 @@ export async function fillApplicationAnswers(options: {
   fillInstructions?: string;
 }): Promise<{
   answers: FilledAnswer[];
-  provider: "gemini" | "local-fallback";
+  provider: "hackclub" | "gemini" | "local-fallback";
   geminiError: string | null;
   geminiModel: string | null;
 }> {
@@ -1035,7 +1035,7 @@ export async function fillApplicationAnswers(options: {
     return {
       answers: fallback,
       provider: "local-fallback",
-      geminiError: "GEMINI_API_KEY is not set on this deployment",
+      geminiError: "Neither HC_API_KEY nor GEMINI_API_KEY is set on this deployment",
       geminiModel: null,
     };
   }
@@ -1082,7 +1082,7 @@ export async function fillApplicationAnswers(options: {
       provider: "local-fallback",
       geminiError:
         result.error ||
-        "Gemini returned text that was not valid JSON answer array",
+        "AI returned text that was not a valid JSON answer array",
       geminiModel: result.model,
     };
   }
@@ -1241,7 +1241,7 @@ export async function fillApplicationAnswers(options: {
 
   return {
     answers,
-    provider: "gemini",
+    provider: result.provider === "hackclub" ? "hackclub" : "gemini",
     geminiError: null,
     geminiModel: result.model,
   };
