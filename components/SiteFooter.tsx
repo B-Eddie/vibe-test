@@ -4,7 +4,10 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="shell site-footer-inner">
-        <p className="footer-brand">InternHarbor</p>
+        <div>
+          <p className="footer-brand">InternHarbor</p>
+          <p className="footer-tag">Find internships. Draft answers. Apply.</p>
+        </div>
         <nav className="footer-links" aria-label="Footer">
           <Link href="/internships">Find</Link>
           <Link href="/apply">Apply</Link>

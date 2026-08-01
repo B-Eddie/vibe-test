@@ -5,6 +5,7 @@ export default function ProfilePage() {
     <main>
       <header className="page-header">
         <h1>Background</h1>
+        <p>The facts InternHarbor uses to draft your applications.</p>
       </header>
       <ProfileForm />
     </main>

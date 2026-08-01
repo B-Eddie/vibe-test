@@ -11,7 +11,7 @@ export default function HomePage() {
       <section className="hero">
         <div className="hero-media" aria-hidden="true">
           <Image
-            src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2000&q=80"
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=2000&q=80"
             alt=""
             fill
             priority
@@ -22,14 +22,16 @@ export default function HomePage() {
         </div>
         <div className="shell hero-copy">
           <p className="hero-brand">InternHarbor</p>
-          <h1>Find it. Fill it. Send it.</h1>
-          <p className="hero-lead">HS internships, one apply desk.</p>
+          <h1>Internships for high school students.</h1>
+          <p className="hero-lead">
+            Find openings, draft applications, and send them from one place.
+          </p>
           <div className="hero-cta">
             <Link className="btn-primary" href="/apply">
-              Apply
+              Start applying
             </Link>
             <Link className="btn-secondary" href="/internships">
-              Browse
+              Browse openings
             </Link>
           </div>
         </div>
@@ -38,7 +40,8 @@ export default function HomePage() {
       <section className="home-matches">
         <div className="shell">
           <div className="section-heading">
-            <h2>Matches</h2>
+            <h2>Openings</h2>
+            <p>A short list to get started. Browse the full board anytime.</p>
           </div>
           <InternshipBrowser
             initialListings={listings}

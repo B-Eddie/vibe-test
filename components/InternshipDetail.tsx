@@ -50,16 +50,13 @@ export function InternshipDetail({
     <div className="detail-layout">
       <section className="detail-panel">
         <div className="internship-meta">
-          <span className="score-chip">{match.score}%</span>
+          <span className="score-chip">{match.score}% match</span>
           <span>{internship.remote ? "Remote" : "On-site"}</span>
+          {internship.deadline ? <span>Deadline {internship.deadline}</span> : null}
         </div>
-        <h1 style={{ margin: 0, fontFamily: "var(--font-display)" }}>
-          {internship.title}
-        </h1>
-        <p className="org-line">
-          {internship.org} · {internship.location}
+        <p className="desc-line" style={{ WebkitLineClamp: "unset" as unknown as number }}>
+          {internship.description}
         </p>
-        <p className="desc-line">{internship.description}</p>
         <div className="tag-row">
           {internship.tags.map((tag) => (
             <span key={tag}>{tag}</span>

@@ -94,7 +94,7 @@ export function buildAutofillSource(payload: FillPayloadItem[]): string {
     el.dispatchEvent(new Event("blur", { bubbles: true }));
   };
   const mark = (el) => {
-    try { el.style.outline = "2px solid #c8f135"; } catch {}
+    try { el.style.outline = "2px solid #f26625"; } catch {}
   };
   const setNativeValue = (el, value) => {
     const tag = el.tagName.toLowerCase();
@@ -317,7 +317,7 @@ export function buildAutofillSource(payload: FillPayloadItem[]): string {
 
   const note = document.createElement("div");
   note.textContent = "InternHarbor filled " + filled + " field(s). Review before submitting.";
-  note.setAttribute("style", "position:fixed;z-index:2147483647;right:16px;bottom:16px;background:#071c1f;color:#c8f135;padding:12px 16px;border-radius:10px;font:600 14px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.25)");
+  note.setAttribute("style", "position:fixed;z-index:2147483647;right:16px;bottom:16px;background:#141414;color:#ffffff;padding:12px 16px;border-radius:8px;font:600 14px/1.3 'IBM Plex Sans',system-ui,sans-serif;box-shadow:0 10px 28px rgba(20,20,20,.2);border-left:3px solid #f26625");
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 6000);
   return filled;
