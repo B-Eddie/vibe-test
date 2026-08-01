@@ -18,6 +18,8 @@ export function loadProfile(): StudentProfile {
     return {
       ...EMPTY_PROFILE,
       ...parsed,
+      gender: parsed.gender ?? "",
+      includeAffinityPrograms: Boolean(parsed.includeAffinityPrograms),
       interests: parsed.interests ?? [],
       skills: parsed.skills ?? [],
       customFacts: parsed.customFacts ?? [],
@@ -108,6 +110,7 @@ export function profileToPromptContext(profile: StudentProfile): string {
     `Grade: ${profile.grade}`,
     `School: ${profile.school}`,
     `City: ${profile.city}`,
+    profile.gender ? `Gender: ${profile.gender}` : "",
     `Remote OK: ${profile.remoteOk ? "yes" : "no"}`,
     `Interests: ${profile.interests.join(", ")}`,
     `Skills: ${profile.skills.join(", ")}`,

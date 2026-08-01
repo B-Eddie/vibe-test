@@ -5,7 +5,8 @@ import { InternshipCard } from "@/components/InternshipCard";
 import { daysUntilDeadline, isDeadlinePassed } from "@/lib/deadline";
 import { isHighSchoolAccessible, rankInternships } from "@/lib/match";
 import { cacheListings } from "@/lib/listings-cache";
-import { loadProfile, upsertTrackerStatus } from "@/lib/storage";
+import { loadProfile, saveProfile, upsertTrackerStatus } from "@/lib/storage";
+import { isFilterTag } from "@/lib/tags";
 import type { Internship, StudentProfile } from "@/lib/types";
 import { EMPTY_PROFILE } from "@/lib/types";
 
@@ -44,6 +45,8 @@ export function InternshipBrowser({
       params.set("interests", loaded.interests.join(","));
     }
     if (loaded.city) params.set("city", loaded.city);
+    if (loaded.gender) params.set("gender", loaded.gender);
+    if (loaded.includeAffinityPrograms) params.set("includeAffinity", "1");
 
     setLoadingLive(true);
     setLiveError(null);
@@ -71,6 +74,12 @@ export function InternshipBrowser({
       .finally(() => setLoadingLive(false));
   }, [initialListings]);
 
+  function setIncludeAffinity(checked: boolean) {
+    const next = { ...profile, includeAffinityPrograms: checked };
+    setProfile(next);
+    saveProfile(next);
+  }
+
   const expiredCount = useMemo(
     () => listings.filter((item) => isDeadlinePassed(item.deadline)).length,
     [listings],
@@ -84,7 +93,9 @@ export function InternshipBrowser({
   const tags = useMemo(() => {
     const set = new Set<string>();
     for (const item of openListings) {
-      for (const value of item.tags) set.add(value);
+      for (const value of item.tags) {
+        if (isFilterTag(value)) set.add(value);
+      }
     }
     return [...set].sort();
   }, [openListings]);
@@ -131,10 +142,18 @@ export function InternshipBrowser({
             />
             Remote only
           </label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={profile.includeAffinityPrograms}
+              onChange={(e) => setIncludeAffinity(e.target.checked)}
+            />
+            Affinity programs
+          </label>
           <label>
             Field
             <select value={tag} onChange={(e) => setTag(e.target.value)}>
-              <option value="all">All tags</option>
+              <option value="all">All fields</option>
               {tags.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -158,12 +177,19 @@ export function InternshipBrowser({
         </div>
       ) : null}
 
-      {hsOnly && showFilters ? (
+      {showFilters ? (
         <p className="provider-note">
-          Showing programs a high school student can realistically apply to.
-          {hiddenCollegeCount > 0
+          {hsOnly
+            ? "Showing programs a high school student can realistically apply to."
+            : null}
+          {hsOnly && hiddenCollegeCount > 0
             ? ` ${hiddenCollegeCount} college-only listing${hiddenCollegeCount === 1 ? "" : "s"} hidden.`
             : null}
+          {!profile.includeAffinityPrograms
+            ? `${hsOnly ? " " : ""}Women-focused and underrepresented-only programs are hidden — turn on Affinity programs to see them.`
+            : profile.gender === "male"
+              ? `${hsOnly ? " " : ""}Girls/women-only programs stay hidden for your profile.`
+              : null}
         </p>
       ) : null}
 

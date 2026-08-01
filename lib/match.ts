@@ -1,5 +1,11 @@
 import type { Internship, MatchResult, StudentProfile } from "./types";
 import { daysUntilDeadline, isDeadlinePassed } from "./deadline";
+import {
+  expandInterestTokens,
+  isUnderrepresentedFocused,
+  isWomenFocused,
+  listingHaystack,
+} from "./tags";
 
 const HS_SIGNALS = [
   "high school",
@@ -78,15 +84,13 @@ function unique(tokens: string[]): string[] {
 }
 
 function listingText(internship: Internship): string {
-  return [
+  return listingHaystack([
     internship.title,
     internship.org,
     internship.description,
     internship.location,
     ...internship.tags,
-  ]
-    .join(" ")
-    .toLowerCase();
+  ]);
 }
 
 function hasHsTag(internship: Internship): boolean {
@@ -132,6 +136,24 @@ export function isHighSchoolAccessible(internship: Internship): boolean {
   return false;
 }
 
+/** Affinity / identity-restricted programs the user likely cannot use. */
+export function isAffinityRestricted(
+  internship: Internship,
+  profile: StudentProfile,
+): boolean {
+  const text = listingText(internship);
+  const women = isWomenFocused(text, internship.tags);
+  const underrep = isUnderrepresentedFocused(text, internship.tags);
+
+  // Male applicants cannot use girls/women-only programs.
+  if (women && profile.gender === "male") return true;
+
+  // Unless opted in, hide affinity-restricted programs for everyone.
+  if (!profile.includeAffinityPrograms && (women || underrep)) return true;
+
+  return false;
+}
+
 export function scoreInternship(
   internship: Internship,
   profile: StudentProfile,
@@ -153,8 +175,10 @@ export function scoreInternship(
   const haystackText = listingText(internship);
 
   const interestHits = profile.interests.filter((interest) => {
-    const tokens = tokenize(interest);
-    return tokens.some((token) => haystack.includes(token));
+    const tokens = expandInterestTokens(interest);
+    return tokens.some(
+      (token) => haystack.includes(token) || haystackText.includes(token),
+    );
   });
   if (interestHits.length) {
     score += interestHits.length * 18;
@@ -162,8 +186,10 @@ export function scoreInternship(
   }
 
   const skillHits = profile.skills.filter((skill) => {
-    const tokens = tokenize(skill);
-    return tokens.some((token) => haystack.includes(token));
+    const tokens = expandInterestTokens(skill);
+    return tokens.some(
+      (token) => haystack.includes(token) || haystackText.includes(token),
+    );
   });
   if (skillHits.length) {
     score += skillHits.length * 14;
@@ -189,6 +215,22 @@ export function scoreInternship(
   if (isHighSchoolAccessible(internship)) {
     score += 22;
     reasons.push("Open to high school students");
+  }
+
+  // Soft penalty if affinity programs are still visible (opted in).
+  if (
+    profile.includeAffinityPrograms &&
+    isWomenFocused(haystackText, internship.tags) &&
+    profile.gender === "male"
+  ) {
+    score -= 40;
+    reasons.push("Women/girls-focused — likely not eligible");
+  } else if (
+    profile.includeAffinityPrograms &&
+    isUnderrepresentedFocused(haystackText, internship.tags) &&
+    profile.gender === "male"
+  ) {
+    score -= 18;
   }
 
   const days = daysUntilDeadline(internship.deadline);
@@ -231,6 +273,7 @@ export function rankInternships(
     .filter(
       (internship) => includePast || !isDeadlinePassed(internship.deadline),
     )
+    .filter((internship) => !isAffinityRestricted(internship, profile))
     .map((internship) => scoreInternship(internship, profile))
     .sort((a, b) => b.score - a.score);
 }

@@ -130,6 +130,24 @@ export function ProfileForm() {
             placeholder="Toronto, ON"
           />
         </label>
+        <label>
+          Gender
+          <select
+            value={profile.gender}
+            onChange={(e) =>
+              setProfile({
+                ...profile,
+                gender: e.target.value as StudentProfile["gender"],
+              })
+            }
+          >
+            <option value="">Not set</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="nonbinary">Non-binary</option>
+            <option value="prefer-not">Prefer not to say</option>
+          </select>
+        </label>
         <label className="checkbox-label">
           <input
             type="checkbox"
@@ -140,6 +158,19 @@ export function ProfileForm() {
           />
           Open to remote roles
         </label>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={profile.includeAffinityPrograms}
+            onChange={(e) =>
+              setProfile({
+                ...profile,
+                includeAffinityPrograms: e.target.checked,
+              })
+            }
+          />
+          Include women-focused / underrepresented-only programs
+        </label>
       </div>
 
       <label>
@@ -147,7 +178,7 @@ export function ProfileForm() {
         <input
           value={interestsText}
           onChange={(e) => setInterestsText(e.target.value)}
-          placeholder="computer science, research, medicine"
+          placeholder="programming, research, medicine"
         />
       </label>
 
