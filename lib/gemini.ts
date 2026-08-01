@@ -324,11 +324,10 @@ export async function searchInternshipsWithGemini(options: {
       : `remote virtual high school internship programs coding research 2026 2027 apply`,
   ];
 
-  if (!getGeminiKey()) {
+  if (!hasAiCredentials()) {
     return {
       listings: [],
-      error:
-        "Live search requires GEMINI_API_KEY (Hack Club AI has no web search)",
+      error: "Neither HC_API_KEY nor GEMINI_API_KEY is set",
       queries: 0,
     };
   }
@@ -368,7 +367,9 @@ export async function searchInternshipsWithGemini(options: {
       continue;
     }
     successQueries += 1;
-    batches.push(parseInternshipRows(parsed, now, "gemini-search"));
+    const source =
+      payload.provider === "hackclub" ? "hackclub-search" : "gemini-search";
+    batches.push(parseInternshipRows(parsed, now, source));
   }
 
   return {

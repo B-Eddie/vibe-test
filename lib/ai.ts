@@ -2,7 +2,8 @@
  * Unified AI layer: Hack Club AI first (HC_API_KEY), Gemini fallback.
  * OpenAI-compatible chat at https://ai.hackclub.com/proxy/v1
  *
- * Live web search is Gemini-only (google_search). Hack Club has no Exa/search API.
+ * Live search: Exa via HC proxy first, then Gemini google_search.
+ * Docs: https://docs.ai.hackclub.com/api/exa.html
  */
 
 export type AiProvider = "hackclub" | "gemini";
@@ -129,10 +130,78 @@ async function callHackClubChat(options: {
   };
 }
 
+type ExaSearchOutcome =
+  | { ok: true; context: string }
+  | { ok: false; error: string };
+
+/** Live web search via Hack Club Exa proxy (same HC_API_KEY). */
+async function hackClubExaSearch(query: string): Promise<ExaSearchOutcome> {
+  const apiKey = getHackClubKey();
+  if (!apiKey) {
+    return { ok: false, error: "HC_API_KEY is not set" };
+  }
+
+  try {
+    const res = await fetch(`${HC_BASE}/exa/search`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        numResults: 8,
+        type: "auto",
+        contents: { text: { maxCharacters: 1200 } },
+      }),
+      cache: "no-store",
+    });
+
+    const data = (await res.json()) as {
+      results?: Array<{
+        title?: string;
+        url?: string;
+        text?: string;
+        summary?: string;
+      }>;
+      error?: { message?: string } | string;
+    };
+
+    if (!res.ok) {
+      const message =
+        (typeof data.error === "string"
+          ? data.error
+          : data.error?.message) || `Hack Club Exa HTTP ${res.status}`;
+      return { ok: false, error: message };
+    }
+
+    const rows = data.results || [];
+    if (!rows.length) {
+      return { ok: false, error: "Hack Club Exa returned no results" };
+    }
+
+    const context = rows
+      .map((row, index) => {
+        const body = (row.text || row.summary || "").slice(0, 900);
+        return `${index + 1}. ${row.title || "Result"}\nURL: ${row.url || ""}\n${body}`;
+      })
+      .join("\n\n");
+
+    return { ok: true, context };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Hack Club Exa request failed",
+    };
+  }
+}
+
 async function generateWithHackClub(options: {
   system: string;
   user: string;
   json?: boolean;
+  search?: boolean;
 }): Promise<AiResult> {
   if (!getHackClubKey()) {
     return {
@@ -141,6 +210,20 @@ async function generateWithHackClub(options: {
       model: null,
       provider: null,
     };
+  }
+
+  let user = options.user;
+  if (options.search) {
+    const web = await hackClubExaSearch(options.user);
+    if (!web.ok) {
+      return {
+        text: null,
+        error: web.error,
+        model: null,
+        provider: "hackclub",
+      };
+    }
+    user = `${options.user}\n\nLive web search results (use these; prefer official program URLs):\n${web.context}`;
   }
 
   // JSON array prompts often break with response_format=json_object; keep off for arrays.
@@ -157,7 +240,7 @@ async function generateWithHackClub(options: {
     try {
       const result = await callHackClubChat({
         system: options.system,
-        user: options.user,
+        user,
         json: wantsJsonObject,
         model,
       });
@@ -203,8 +286,8 @@ export type GeminiGenerateFn = (options: {
 }) => Promise<AiResult>;
 
 /**
- * Try Hack Club AI first, then Gemini. Pass `geminiFallback` to avoid circular imports.
- * When `search: true`, skip Hack Club (no web search API) and use Gemini google_search.
+ * Try Hack Club AI first (including Exa for search), then Gemini.
+ * Pass `geminiFallback` to avoid circular imports.
  */
 export async function aiGenerate(
   options: {
@@ -215,20 +298,6 @@ export async function aiGenerate(
   },
   geminiFallback: GeminiGenerateFn,
 ): Promise<AiResult> {
-  // Live search needs Gemini's google_search tool — Hack Club has no Exa/search.
-  if (options.search) {
-    if (!getGeminiKey()) {
-      return {
-        text: null,
-        error:
-          "Live search requires GEMINI_API_KEY (Hack Club AI has no web search)",
-        model: null,
-        provider: null,
-      };
-    }
-    return geminiFallback(options);
-  }
-
   if (getHackClubKey()) {
     const hc = await generateWithHackClub(options);
     if (hc.text) return hc;
