@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { InternshipCard } from "@/components/InternshipCard";
 import { daysUntilDeadline, isDeadlinePassed } from "@/lib/deadline";
-import { rankInternships } from "@/lib/match";
+import { isHighSchoolAccessible, rankInternships } from "@/lib/match";
 import { cacheListings } from "@/lib/listings-cache";
 import { loadProfile, upsertTrackerStatus } from "@/lib/storage";
 import type { Internship, StudentProfile } from "@/lib/types";
@@ -13,15 +13,19 @@ type Props = {
   initialListings: Internship[];
   limit?: number;
   showFilters?: boolean;
+  /** Default for the high-school-only filter (Find page defaults on). */
+  defaultHsOnly?: boolean;
 };
 
 export function InternshipBrowser({
   initialListings,
   limit,
   showFilters = true,
+  defaultHsOnly = false,
 }: Props) {
   const [listings, setListings] = useState<Internship[]>(initialListings);
   const [profile, setProfile] = useState<StudentProfile>(EMPTY_PROFILE);
+  const [hsOnly, setHsOnly] = useState(defaultHsOnly);
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [tag, setTag] = useState("all");
   const [deadlineDays, setDeadlineDays] = useState<"any" | "30" | "60">("any");
@@ -76,6 +80,7 @@ export function InternshipBrowser({
   const matches = useMemo(() => {
     const ranked = rankInternships(openListings, profile).filter((match) => {
       const { internship } = match;
+      if (hsOnly && !isHighSchoolAccessible(internship)) return false;
       if (remoteOnly && !internship.remote) return false;
       if (tag !== "all" && !internship.tags.includes(tag)) return false;
       if (deadlineDays !== "any") {
@@ -87,12 +92,25 @@ export function InternshipBrowser({
       return true;
     });
     return typeof limit === "number" ? ranked.slice(0, limit) : ranked;
-  }, [openListings, profile, remoteOnly, tag, deadlineDays, limit]);
+  }, [openListings, profile, hsOnly, remoteOnly, tag, deadlineDays, limit]);
+
+  const hiddenCollegeCount = useMemo(() => {
+    if (!hsOnly) return 0;
+    return openListings.filter((item) => !isHighSchoolAccessible(item)).length;
+  }, [openListings, hsOnly]);
 
   return (
     <div className="browser">
       {showFilters ? (
         <div className="filters">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={hsOnly}
+              onChange={(e) => setHsOnly(e.target.checked)}
+            />
+            High school only
+          </label>
           <label className="checkbox-label">
             <input
               type="checkbox"
@@ -128,6 +146,15 @@ export function InternshipBrowser({
         </div>
       ) : null}
 
+      {hsOnly && showFilters ? (
+        <p className="provider-note">
+          Showing programs a high school student can realistically apply to.
+          {hiddenCollegeCount > 0
+            ? ` ${hiddenCollegeCount} college-only listing${hiddenCollegeCount === 1 ? "" : "s"} hidden.`
+            : null}
+        </p>
+      ) : null}
+
       {loadingLive || liveSearch || expiredCount > 0 ? (
         <p className="provider-note">
           {loadingLive
@@ -161,7 +188,11 @@ export function InternshipBrowser({
           </div>
         ))}
         {!matches.length ? (
-          <p className="empty-state">No open matches.</p>
+          <p className="empty-state">
+            {hsOnly
+              ? "No open high school–accessible matches. Turn off “High school only” to see more listings."
+              : "No open matches."}
+          </p>
         ) : null}
       </div>
     </div>

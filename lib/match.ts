@@ -4,16 +4,66 @@ import { daysUntilDeadline, isDeadlinePassed } from "./deadline";
 const HS_SIGNALS = [
   "high school",
   "high-school",
+  "highschool",
   "grades 9",
   "grades 10",
   "grades 11",
   "grades 12",
+  "grade 9",
+  "grade 10",
+  "grade 11",
+  "grade 12",
+  "9th grade",
+  "10th grade",
+  "11th grade",
+  "12th grade",
   "rising senior",
   "rising junior",
+  "rising sophomore",
   "minors welcome",
   "student leaders",
-  "hs ",
-  "teen",
+  "pre-college",
+  "precollege",
+  "secondary school",
+  "hs student",
+  "hs internship",
+  "teen ",
+  "teens",
+  "ages 14",
+  "ages 15",
+  "ages 16",
+  "ages 17",
+  "ages 18",
+];
+
+/** Phrases that usually mean college/university-only (infeasible for HS). */
+const COLLEGE_ONLY_SIGNALS = [
+  "undergraduate",
+  "undergrad",
+  "university student",
+  "college student",
+  "currently enrolled in a bachelor",
+  "pursuing a bachelor",
+  "pursuing a degree",
+  "bachelor's degree",
+  "bachelors degree",
+  "enrolled in a university",
+  "enrolled in college",
+  "college sophomore",
+  "college junior",
+  "college senior",
+  "university sophomore",
+  "university junior",
+  "university senior",
+  "graduating senior",
+  "masters student",
+  "master's student",
+  "mba student",
+  "phd student",
+  "graduate student",
+  "must be 18+ and enrolled",
+  "returning to university",
+  "returning to college",
 ];
 
 function tokenize(value: string): string[] {
@@ -25,6 +75,61 @@ function tokenize(value: string): string[] {
 
 function unique(tokens: string[]): string[] {
   return [...new Set(tokens)];
+}
+
+function listingText(internship: Internship): string {
+  return [
+    internship.title,
+    internship.org,
+    internship.description,
+    internship.location,
+    ...internship.tags,
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function hasHsTag(internship: Internship): boolean {
+  return internship.tags.some((tag) => {
+    const t = tag.toLowerCase();
+    return (
+      t.includes("high-school") ||
+      t.includes("high school") ||
+      t === "hs" ||
+      t.includes("pre-college") ||
+      t.includes("precollege")
+    );
+  });
+}
+
+function hasHsSignal(text: string): boolean {
+  return HS_SIGNALS.some((signal) => text.includes(signal));
+}
+
+function hasCollegeOnlySignal(text: string): boolean {
+  return COLLEGE_ONLY_SIGNALS.some((signal) => text.includes(signal));
+}
+
+/**
+ * True when a high school student could realistically apply / get in.
+ * Prefers explicit HS / pre-college signals; rejects clear college-only roles
+ * (e.g. typical undergrad SWE internships at Shopify-scale companies).
+ */
+export function isHighSchoolAccessible(internship: Internship): boolean {
+  const text = listingText(internship);
+  const hsTagged = hasHsTag(internship);
+  const hsMentioned = hsTagged || hasHsSignal(text);
+  const collegeOnly = hasCollegeOnlySignal(text);
+
+  // Explicit HS + college language still counts as HS-accessible
+  // (e.g. "high school and undergraduate students").
+  if (hsMentioned) return true;
+
+  if (collegeOnly) return false;
+
+  // Ambiguous corporate internships without HS language are treated as
+  // college-track when the strict filter is on.
+  return false;
 }
 
 export function scoreInternship(
@@ -45,14 +150,7 @@ export function scoreInternship(
       ].join(" "),
     ),
   );
-  const haystackText = [
-    internship.title,
-    internship.org,
-    internship.description,
-    ...internship.tags,
-  ]
-    .join(" ")
-    .toLowerCase();
+  const haystackText = listingText(internship);
 
   const interestHits = profile.interests.filter((interest) => {
     const tokens = tokenize(interest);
@@ -88,10 +186,9 @@ export function scoreInternship(
     score -= 6;
   }
 
-  const hsBoost = HS_SIGNALS.some((signal) => haystackText.includes(signal));
-  if (hsBoost || internship.tags.some((tag) => tag.includes("high-school"))) {
+  if (isHighSchoolAccessible(internship)) {
     score += 22;
-    reasons.push("Explicitly open to high school students");
+    reasons.push("Open to high school students");
   }
 
   const days = daysUntilDeadline(internship.deadline);

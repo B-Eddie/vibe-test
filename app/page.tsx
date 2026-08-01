@@ -47,6 +47,7 @@ export default function HomePage() {
             initialListings={listings}
             limit={5}
             showFilters={false}
+            defaultHsOnly
           />
         </div>
       </section>
