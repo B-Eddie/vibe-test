@@ -1,5 +1,6 @@
 import type { Internship, MatchResult, StudentProfile } from "./types";
 import { daysUntilDeadline, isDeadlinePassed } from "./deadline";
+import { isLocationIneligible, parseProfileLocation } from "./location";
 import {
   expandInterestTokens,
   isUnderrepresentedFocused,
@@ -200,10 +201,19 @@ export function scoreInternship(
     score += 16;
     reasons.push("Remote-friendly fits your preference");
   } else if (!internship.remote && profile.city) {
-    const cityToken = tokenize(profile.city)[0];
-    if (cityToken && internship.location.toLowerCase().includes(cityToken)) {
-      score += 18;
-      reasons.push(`Near ${profile.city}`);
+    const loc = parseProfileLocation(profile.city);
+    const locationText = `${internship.location} ${internship.description}`.toLowerCase();
+    const localHit =
+      loc.tokens.some(
+        (token) => token.length > 2 && locationText.includes(token),
+      ) ||
+      loc.regionHints.some((hint) => locationText.includes(hint));
+    if (localHit) {
+      score += 22;
+      reasons.push(`Fits your area (${profile.city})`);
+    } else if (loc.country === "ca" && /united states|\bus\b|u\.s\./i.test(locationText)) {
+      score -= 12;
+      reasons.push("US-local program — farther from your area");
     } else if (!profile.remoteOk) {
       score += 4;
       reasons.push("On-site opportunity");
@@ -274,6 +284,7 @@ export function rankInternships(
       (internship) => includePast || !isDeadlinePassed(internship.deadline),
     )
     .filter((internship) => !isAffinityRestricted(internship, profile))
+    .filter((internship) => !isLocationIneligible(internship, profile))
     .map((internship) => scoreInternship(internship, profile))
     .sort((a, b) => b.score - a.score);
 }
