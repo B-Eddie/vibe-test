@@ -15,6 +15,7 @@ export function profileToPromptContext(profile: StudentProfile): string {
     `Grade: ${profile.grade}`,
     `School: ${profile.school}`,
     `City: ${profile.city}`,
+    profile.gender ? `Gender: ${profile.gender}` : "",
     `Remote OK: ${profile.remoteOk ? "yes" : "no"}`,
     `Interests (only for interest/skills-style questions, never for country/scores/address): ${(profile.interests ?? []).join(", ")}`,
     `Skills (only for skills-style questions, never for country/scores/address): ${(profile.skills ?? []).join(", ")}`,
