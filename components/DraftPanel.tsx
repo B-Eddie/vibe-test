@@ -84,7 +84,11 @@ export function DraftPanel({ internship, profile }: Props) {
 
       {provider ? (
         <p className="provider-note">
-          {provider === "gemini" ? "Gemini" : "Local"}
+          {provider === "hackclub"
+            ? "Hack Club AI"
+            : provider === "gemini"
+              ? "Gemini"
+              : "Local"}
         </p>
       ) : null}
       {error ? <p className="error-note">{error}</p> : null}

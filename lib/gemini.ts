@@ -2,6 +2,13 @@ import type { Internship } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
 import { isDeadlinePassed } from "./deadline";
+import {
+  aiGenerate,
+  getGeminiKey,
+  getHackClubKey,
+  hasAiCredentials,
+  type AiResult,
+} from "./ai";
 
 /**
  * Prefer Gemini 3.5 Flash. Older 2.x flash / flash-lite IDs are shut down
@@ -33,12 +40,9 @@ const DEFAULT_MODELS = preferredModels();
 
 export const GEMINI_MODEL = DEFAULT_MODELS[0] || "gemini-3.5-flash";
 
+/** True when Hack Club or Gemini credentials exist. */
 export function getApiKey(): string | undefined {
-  const key =
-    process.env.GEMINI_API_KEY?.trim() ||
-    process.env.GOOGLE_API_KEY?.trim() ||
-    undefined;
-  return key || undefined;
+  return getHackClubKey() || getGeminiKey();
 }
 
 type GeminiPart = { text?: string };
@@ -50,11 +54,7 @@ type GeminiResponse = {
   error?: { message?: string; status?: string; code?: number };
 };
 
-export type GeminiResult = {
-  text: string | null;
-  error: string | null;
-  model: string | null;
-};
+export type GeminiResult = AiResult;
 
 function extractText(data: GeminiResponse): string | null {
   const parts = data.candidates?.[0]?.content?.parts ?? [];
@@ -74,7 +74,7 @@ async function callGeminiModel(
     json?: boolean;
     search?: boolean;
   },
-): Promise<GeminiResult> {
+): Promise<AiResult> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   // JSON mime type cannot be combined with google_search tool.
@@ -123,7 +123,7 @@ async function callGeminiModel(
     const message =
       data.error?.message ||
       `Gemini HTTP ${res.status}${data.error?.status ? ` (${data.error.status})` : ""}`;
-    return { text: null, error: message, model };
+    return { text: null, error: message, model, provider: "gemini" };
   }
 
   const text = extractText(data);
@@ -135,28 +135,27 @@ async function callGeminiModel(
         ? `Gemini returned no text (finishReason=${reason})`
         : "Gemini returned an empty response",
       model,
+      provider: "gemini",
     };
   }
 
-  return { text, error: null, model };
+  return { text, error: null, model, provider: "gemini" };
 }
 
-/**
- * Direct REST calls with model fallback. Returns text + error so the UI can
- * show when GEMINI_API_KEY is missing/invalid instead of silently falling back.
- */
-export async function geminiGenerate(options: {
+/** Gemini-only path (used as fallback from the unified AI layer). */
+async function geminiOnlyGenerate(options: {
   system: string;
   user: string;
   json?: boolean;
   search?: boolean;
-}): Promise<GeminiResult> {
-  const apiKey = getApiKey();
+}): Promise<AiResult> {
+  const apiKey = getGeminiKey();
   if (!apiKey) {
     return {
       text: null,
       error: "GEMINI_API_KEY is not set in this deployment",
       model: null,
+      provider: null,
     };
   }
 
@@ -172,7 +171,6 @@ export async function geminiGenerate(options: {
       if (result.text) return result;
       lastError = result.error;
       lastModel = result.model;
-      // Bad key / auth — no point trying other models
       if (
         lastError &&
         /API key|PERMISSION_DENIED|UNAUTHENTICATED|invalid.?api.?key/i.test(
@@ -181,10 +179,9 @@ export async function geminiGenerate(options: {
       ) {
         return result;
       }
-      // Model missing, unsupported, or per-model quota — try the next one
       if (
         lastError &&
-        /not found|not supported|invalid model|NOT_FOUND|quota|rate.?limit|RESOURCE_EXHAUSTED|billing|exceeded/i.test(
+        /not found|not supported|invalid model|NOT_FOUND|quota|rate.?limit|RESOURCE_EXHAUSTED|billing|exceeded|no longer available/i.test(
           lastError,
         )
       ) {
@@ -201,7 +198,21 @@ export async function geminiGenerate(options: {
     text: null,
     error: lastError || "Gemini request failed",
     model: lastModel,
+    provider: "gemini",
   };
+}
+
+/**
+ * Hack Club AI first, then Gemini. Returns text + error so the UI can show
+ * when credentials are missing/invalid instead of silently falling back.
+ */
+export async function geminiGenerate(options: {
+  system: string;
+  user: string;
+  json?: boolean;
+  search?: boolean;
+}): Promise<GeminiResult> {
+  return aiGenerate(options, geminiOnlyGenerate);
 }
 
 /** Back-compat helper used by existing call sites. */
@@ -213,7 +224,7 @@ export async function geminiText(options: {
 }): Promise<string | null> {
   const result = await geminiGenerate(options);
   if (result.error) {
-    console.error("Gemini:", result.error, result.model);
+    console.error("AI:", result.error, result.provider, result.model);
   }
   return result.text;
 }
@@ -246,6 +257,7 @@ Rules:
 function parseInternshipRows(
   parsed: unknown[],
   now: string,
+  source: string,
 ): Internship[] {
   return parsed
     .map((item) => {
@@ -277,10 +289,10 @@ function parseInternshipRows(
         tags: [
           ...(Array.isArray(row.tags) ? row.tags.slice(0, 6) : []),
           "high-school",
-          "gemini-search",
+          source,
         ],
         description: (row.description || row.title).slice(0, 700),
-        source: "gemini-search",
+        source,
         updatedAt: now,
       });
     })
@@ -312,10 +324,10 @@ export async function searchInternshipsWithGemini(options: {
       : `remote virtual high school internship programs coding research 2026 2027 apply`,
   ];
 
-  if (!getApiKey()) {
+  if (!hasAiCredentials()) {
     return {
       listings: [],
-      error: "GEMINI_API_KEY is not set in this deployment",
+      error: "Neither HC_API_KEY nor GEMINI_API_KEY is set",
       queries: 0,
     };
   }
@@ -351,11 +363,13 @@ export async function searchInternshipsWithGemini(options: {
     }
     const parsed = extractJsonArray(payload.text);
     if (!parsed?.length) {
-      errors.push("Gemini returned no parseable internship list");
+      errors.push("AI returned no parseable internship list");
       continue;
     }
     successQueries += 1;
-    batches.push(parseInternshipRows(parsed, now));
+    const source =
+      payload.provider === "hackclub" ? "hackclub-search" : "gemini-search";
+    batches.push(parseInternshipRows(parsed, now, source));
   }
 
   return {
@@ -392,13 +406,15 @@ export async function probeGemini(): Promise<{
   ok: boolean;
   model: string | null;
   error: string | null;
+  provider: string | null;
 }> {
-  if (!getApiKey()) {
+  if (!hasAiCredentials()) {
     return {
       configured: false,
       ok: false,
       model: null,
-      error: "GEMINI_API_KEY is not set",
+      error: "Neither HC_API_KEY nor GEMINI_API_KEY is set",
+      provider: null,
     };
   }
   const result = await geminiGenerate({
@@ -410,5 +426,6 @@ export async function probeGemini(): Promise<{
     ok: Boolean(result.text),
     model: result.model,
     error: result.error,
+    provider: result.provider,
   };
 }

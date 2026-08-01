@@ -280,7 +280,7 @@ export function ApplyWorkspace() {
       fillData = (await fillRes.json()) as typeof fillData;
     } catch {
       throw new Error(
-        `Could not draft answers (HTTP ${fillRes.status}). Check GEMINI_API_KEY.`,
+        `Could not draft answers (HTTP ${fillRes.status}). Check HC_API_KEY or GEMINI_API_KEY.`,
       );
     }
     if (!fillRes.ok || !fillData.answers) {

@@ -46,7 +46,10 @@ export function InternshipCard({ match }: { match: MatchResult }) {
           <span>{internship.remote ? "Remote" : "On-site"}</span>
           <span>{formatDeadline(internship.deadline)}</span>
           <span className="source-chip">
-            {internship.source === "gemini-search" ? "Live" : "Curated"}
+            {internship.source === "gemini-search" ||
+            internship.source === "hackclub-search"
+              ? "Live"
+              : "Curated"}
           </span>
         </div>
         <h3>

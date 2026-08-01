@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Internship, StudentProfile } from "@/lib/types";
-import { geminiText, getApiKey } from "@/lib/gemini";
+import { geminiGenerate, getApiKey } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(fallback);
   }
 
-  const content = await geminiText({
+  const result = await geminiGenerate({
     json: true,
     system:
       "You help a high school student draft internship application materials. Reply with ONLY valid JSON with keys coverEmail and whyMe. Always return non-empty drafts. Prefer profile facts; when details are missing, write a sincere editable draft grounded in grade/school/interests/skills and the opportunity. If writingSamples are present, match that voice (tone, pacing, vocabulary) without copying them verbatim. Do not invent specific awards, GPAs, or employers not in the profile. Do not submit anything; drafting only.",
@@ -96,14 +96,14 @@ export async function POST(request: NextRequest) {
     }),
   });
 
-  if (!content) {
+  if (!result.text) {
     return NextResponse.json(fallback);
   }
 
-  const parsed = extractJsonObject(content);
+  const parsed = extractJsonObject(result.text);
   return NextResponse.json({
     coverEmail: parsed?.coverEmail ?? fallback.coverEmail,
     whyMe: parsed?.whyMe ?? fallback.whyMe,
-    provider: "gemini" as const,
+    provider: (result.provider || "gemini") as "hackclub" | "gemini",
   });
 }
