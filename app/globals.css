@@ -540,6 +540,11 @@ textarea {
   letter-spacing: -0.01em;
 }
 
+.source-chip {
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+}
+
 .internship-row h3 {
   margin: 0;
   font-family: var(--font-display), sans-serif;

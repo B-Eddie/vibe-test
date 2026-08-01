@@ -30,6 +30,8 @@ export function InternshipBrowser({
   const [tag, setTag] = useState("all");
   const [deadlineDays, setDeadlineDays] = useState<"any" | "30" | "60">("any");
   const [liveSearch, setLiveSearch] = useState(false);
+  const [liveCount, setLiveCount] = useState(0);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [loadingLive, setLoadingLive] = useState(false);
 
   useEffect(() => {
@@ -44,17 +46,27 @@ export function InternshipBrowser({
     if (loaded.city) params.set("city", loaded.city);
 
     setLoadingLive(true);
+    setLiveError(null);
     fetch(`/api/internships?${params.toString()}`)
       .then((res) => res.json())
-      .then((data: { listings?: Internship[]; liveSearch?: boolean }) => {
-        if (data.listings?.length) {
-          setListings(data.listings);
-          cacheListings(data.listings);
-        }
-        setLiveSearch(Boolean(data.liveSearch));
-      })
+      .then(
+        (data: {
+          listings?: Internship[];
+          liveSearch?: boolean;
+          liveCount?: number;
+          error?: string | null;
+        }) => {
+          if (data.listings?.length) {
+            setListings(data.listings);
+            cacheListings(data.listings);
+          }
+          setLiveSearch(Boolean(data.liveSearch));
+          setLiveCount(Number(data.liveCount) || 0);
+          setLiveError(data.error || null);
+        },
+      )
       .catch(() => {
-        /* keep seed listings */
+        setLiveError("Could not reach live search — showing curated listings.");
       })
       .finally(() => setLoadingLive(false));
   }, [initialListings]);
@@ -155,15 +167,17 @@ export function InternshipBrowser({
         </p>
       ) : null}
 
-      {loadingLive || liveSearch || expiredCount > 0 ? (
+      {loadingLive || liveSearch || liveError || expiredCount > 0 ? (
         <p className="provider-note">
           {loadingLive
-            ? "Searching…"
+            ? "Searching for more open programs..."
             : liveSearch
-              ? "Live results included."
-              : null}
+              ? `Live search added ${liveCount} listing${liveCount === 1 ? "" : "s"}.`
+              : liveError
+                ? `Live search unavailable (${liveError}). Showing curated listings.`
+                : null}
           {expiredCount > 0
-            ? `${loadingLive || liveSearch ? " " : ""}${expiredCount} closed hidden.`
+            ? `${loadingLive || liveSearch || liveError ? " " : ""}${expiredCount} closed hidden.`
             : null}
         </p>
       ) : null}

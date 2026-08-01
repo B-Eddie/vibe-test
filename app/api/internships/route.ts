@@ -18,11 +18,16 @@ export async function GET(request: NextRequest) {
   const interests = parseList(searchParams.get("interests"));
   const city = searchParams.get("city")?.trim() ?? "";
 
-  const { listings, liveSearch } = await loadInternships({ interests, city });
+  const { listings, liveSearch, liveCount, error } = await loadInternships({
+    interests,
+    city,
+  });
 
   return NextResponse.json({
     listings,
     count: listings.length,
     liveSearch,
+    liveCount,
+    error,
   });
 }
