@@ -1,7 +1,8 @@
-import type { Internship, StudentGender } from "./types";
+import type { Internship, StudentGender, StudentProfile } from "./types";
 import { normalizeListing, mergeListings } from "./ingest/normalize";
 import { getSeedInternships } from "./seed";
 import { isDeadlinePassed } from "./deadline";
+import { locationSearchGuidance, isLocationIneligible } from "./location";
 import { SEARCH_TAG_ALLOWLIST } from "./tags";
 import {
   aiGenerate,
@@ -247,6 +248,7 @@ export function extractJsonArray(content: string): unknown[] | null {
 function buildSearchSystem(options: {
   gender?: StudentGender;
   includeAffinity?: boolean;
+  city?: string;
 }): string {
   const allow = SEARCH_TAG_ALLOWLIST.join(", ");
   const affinity =
@@ -255,6 +257,7 @@ function buildSearchSystem(options: {
       : options.gender === "male"
         ? `- Do NOT return girls/women-only programs (e.g. Girls Who Code, Kode With Klossy) or programs whose primary eligibility is underrepresented/minority students only. Prefer open-to-all high school programs.`
         : `- Prefer open-to-all high school programs. Skip girls/women-only and underrepresented-only affinity programs unless the posting is clearly open to all students.`;
+  const location = locationSearchGuidance(options.city || "");
 
   return `You find real, currently open high school internship, research, and pre-college programs that a high school student (grades 9–12) can apply to and get into.
 
@@ -263,6 +266,8 @@ Rules:
 - Prefer official program or application pages.
 - Skip programs whose application deadline has already passed (unless clearly rolling).
 ${affinity}
+${location}
+- Put residency constraints in the description when present (e.g. "must live within 50 miles of Redmond, WA").
 - Use ONLY these tags (pick 1–3 field tags): ${allow}.
 - Collapse CS/AI/coding/web/data tags to "programming". Always include "high-school".
 - Return ONLY a JSON array of objects with keys: title, org, url, location, remote (boolean), deadline (YYYY-MM-DD or null for rolling), tags (string[]), description.
@@ -330,24 +335,30 @@ export async function searchInternshipsWithGemini(options: {
   const focus = interests.length
     ? interests.slice(0, 4).join(" ")
     : "programming research STEM";
-  const place = city ? ` near ${city}` : "";
+  const place = city ? ` for students in ${city}` : "";
   const openOnlyHint = includeAffinity
     ? ""
     : " open to all students (not girls-only or underrepresented-only)";
+  const canadaHint = /oakville|toronto|ontario|\bon\b|canada|montreal|vancouver|calgary|ottawa/i.test(
+    city,
+  )
+    ? " Canada Ontario Canadian students eligible remote virtual"
+    : "";
 
   const queries = [
-    `high school student internship programs ${focus}${place}${openOnlyHint} 2026 2027 apply`,
-    `high school summer research internship programs STEM medicine biology engineering${openOnlyHint} 2026 2027 apply`,
-    `paid high school internship technology programming nonprofit government${openOnlyHint} 2026 2027 apply`,
-    `pre-college STEM programs high school students RSI COSMOS SIMR SSP${openOnlyHint} apply`,
+    `high school student internship programs ${focus}${place}${canadaHint}${openOnlyHint} 2026 2027 apply`,
+    `high school summer research internship programs STEM medicine biology engineering${place}${canadaHint}${openOnlyHint} 2026 2027 apply`,
+    `paid high school internship technology programming nonprofit government remote${canadaHint}${openOnlyHint} 2026 2027 apply`,
+    `pre-college STEM programs high school students${place}${canadaHint} RSI COSMOS SIMR SSP${openOnlyHint} apply`,
     city
-      ? `high school internships and research programs in ${city}${openOnlyHint} 2026 2027 apply`
+      ? `high school internships and research programs near ${city} or remote open to ${city} students${openOnlyHint} 2026 2027 apply`
       : `remote virtual high school internship programs programming research${openOnlyHint} 2026 2027 apply`,
   ];
 
   const searchSystem = buildSearchSystem({
     gender: options.gender,
     includeAffinity,
+    city,
   });
 
   if (!hasAiCredentials()) {
@@ -398,8 +409,18 @@ export async function searchInternshipsWithGemini(options: {
     batches.push(parseInternshipRows(parsed, now, source));
   }
 
+  const merged = mergeListings(batches);
+  const profileStub = {
+    city,
+    gender: options.gender || "",
+    includeAffinityPrograms: includeAffinity,
+  } as StudentProfile;
+  const listings = city
+    ? merged.filter((item) => !isLocationIneligible(item, profileStub))
+    : merged;
+
   return {
-    listings: mergeListings(batches),
+    listings,
     error: successQueries ? null : errors[0] || "Live search returned no results",
     queries: successQueries,
   };

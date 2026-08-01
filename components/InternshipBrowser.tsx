@@ -190,6 +190,9 @@ export function InternshipBrowser({
             : profile.gender === "male"
               ? `${hsOnly ? " " : ""}Girls/women-only programs stay hidden for your profile.`
               : null}
+          {profile.city
+            ? `${hsOnly || !profile.includeAffinityPrograms || profile.gender === "male" ? " " : ""}Programs with hard residency rules outside ${profile.city} are hidden.`
+            : null}
         </p>
       ) : null}
 
